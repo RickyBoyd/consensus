@@ -1,6 +1,8 @@
 package raft
 
-import "testing"
+import (
+	"testing"
+)
 
 type MockCallback struct {
 	// Returns for requestVote
@@ -10,7 +12,7 @@ type MockCallback struct {
 	success bool
 }
 
-func newMock(term int, voteGranted bool, success bool) MockCallback {
+func newVoterMock(term int, voteGranted bool, success bool) MockCallback {
 	return MockCallback{
 		term:        term,
 		voteGranted: voteGranted,
@@ -18,41 +20,44 @@ func newMock(term int, voteGranted bool, success bool) MockCallback {
 	}
 }
 
-func (a MockCallback) requestVote(term int,
-	candidateID int,
-	lastLogIndex int,
-	lastLogTerm int) RequestVoteResponse {
-
-	termResponse := make(chan int, 1)
-	termResponse <- a.term
-
-	voteResponse := make(chan bool, 1)
-	voteResponse <- a.voteGranted
-
-	return RequestVoteResponse{
-		term:     termResponse,
-		votedFor: voteResponse,
-	}
+func (a MockCallback) requestVote(request VoteRequest) {
 }
 
-func (a MockCallback) appendEntries(term int,
-	leaderID int,
-	prevLogIndex int,
-	prevLogTerm int,
-	entries []LogEntry,
-	leaderCommit int) (int, bool) {
-
-	return a.term, a.success
+func (a MockCallback) appendEntries(request AppendEntriesRequest) {
 }
 
-func TestRequestVotes(t *testing.T) {
-	testAgent := NewAgent()
-	testAgent.AddCallback(newMock(0, true, false))
-	testAgent.AddCallback(newMock(0, false, false))
-
-	votes := testAgent.requestVotes()
-	count := testAgent.countVotes(votes)
-	if count != 2 {
-		t.Error("Expected 1 vote got ", votes)
+func generateTestLog(commandsPerTerm []int) []LogEntry {
+	log := make([]LogEntry, 0)
+	for term, numCommands := range commandsPerTerm {
+		for command := 0; command < numCommands; command++ {
+			log = append(log, LogEntry{command, term})
+		}
 	}
+	return log
+}
+
+func addLogTest(t *testing.T, commandsPerTerm []int, entry LogEntry, index int, expectedLength int) {
+	logs := generateTestLog([]int{3, 4})
+	agent := Agent{log: logs}
+	agent.addToLog(index, entry)
+
+	if len(agent.log) != expectedLength {
+		t.Error("Expected length: ", expectedLength, ", actual: ", len(agent.log))
+	}
+	if agent.log[index] != entry {
+		t.Error("Expected: ", entry, " Actual: ", agent.log[index])
+	}
+}
+func TestAddLogAppends(t *testing.T) {
+	entry := LogEntry{3, 5}
+	addLogTest(t, []int{3, 4}, entry, 7, 8)
+}
+
+func TestAddLogOverwritesAtEnd(t *testing.T) {
+	entry := LogEntry{3, 5}
+	addLogTest(t, []int{3, 4}, entry, 6, 7)
+}
+func TestAddLogOverwrites(t *testing.T) {
+	entry := LogEntry{3, 5}
+	addLogTest(t, []int{3, 4}, entry, 3, 7)
 }

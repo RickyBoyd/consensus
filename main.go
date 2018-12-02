@@ -1,21 +1,23 @@
 package main
 
 import (
-	"consensus/paxos"
 	"consensus/raft"
 	"fmt"
-	"time"
 )
 
 func main() {
 	fmt.Printf("Hello\n")
-	agent := paxos.Agent{ID: 1}
-	fmt.Printf("%d\n", agent.ID)
 
-	raftAgent := raft.NewAgent()
-	fmt.Printf("agent num %d\n", raftAgent.ID)
-	time.Sleep(200)
+	raft.NewRaftInstance(3)
 
-	ch := make(chan byte, 1)
-	<-ch
+	//exit := make(chan string)
+	// Spawn all you worker goroutines, and send a message to exit when you're done.
+	for {
+		//select {
+		//case <-exit:
+		//	{
+		//		os.Exit(0)
+		//	}
+		//}
+	}
 }
