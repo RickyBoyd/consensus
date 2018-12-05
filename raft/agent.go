@@ -31,9 +31,20 @@ type LogEntry struct {
 	Command int
 }
 
+//AgentInterface defines the methods an agent needs to implement to interact with the outside wordl
+type AgentInterface interface {
+	handleAppendEntriesRPC(request AppendEntriesRequest) AppendEntriesResponse
+	handleAppendEntriesResponse(response AppendEntriesResponse)
+	handleRequestVoteRPC(request VoteRequest) VoteResponse
+	handleRequestVoteResponse(response VoteResponse)
+	start()
+	AddCallback(AgentCallback)
+	ID() int
+}
+
 //Agent type
 type Agent struct {
-	ID             int
+	id             int
 	agentCallbacks []AgentCallback
 	state          agentState
 	// Channels to receive events
@@ -58,9 +69,9 @@ type Agent struct {
 }
 
 //NewAgent creates a new agent
-func NewAgent(id int) *Agent {
+func NewAgent(id int) Agent {
 	agent := Agent{
-		ID:             id,
+		id:             id,
 		agentCallbacks: make([]AgentCallback, 0),
 		state:          follower,
 		currentTerm:    0,
@@ -72,16 +83,20 @@ func NewAgent(id int) *Agent {
 		matchIndex:     make([]int, 0),
 		numVotes:       0,
 	}
-	return &agent
+	return agent
 }
 
-func (agent *Agent) start() {
+func (agent Agent) ID() int {
+	return agent.id
+}
+
+func (agent Agent) start() {
 	duration := generateTimeoutDuration()
 	agent.timeout = time.AfterFunc(duration, agent.handleTimeout)
-	fmt.Printf("TImer: %d, ID: %d\n", duration, agent.ID)
+	fmt.Printf("TImer: %d, ID: %d\n", duration, agent.id)
 }
 
-func (agent *Agent) handleTimeout() {
+func (agent Agent) handleTimeout() {
 	if agent.state == candidate {
 		agent.beginElection()
 	} else if agent.state == follower {
@@ -91,7 +106,7 @@ func (agent *Agent) handleTimeout() {
 	}
 }
 
-func (agent *Agent) handleRequestVoteResponse(response VoteResponse) {
+func (agent Agent) handleRequestVoteResponse(response VoteResponse) {
 	fmt.Printf("handleRequestVoteResponse: %d\n", agent.ID)
 	if response.votedFor {
 		agent.numVotes++
@@ -103,22 +118,22 @@ func (agent *Agent) handleRequestVoteResponse(response VoteResponse) {
 	//TODO finish
 }
 
-func (agent *Agent) becomeLeader() {
+func (agent Agent) becomeLeader() {
 	agent.state = leader
 	//TODO FINISH THIS
 	agent.sendHeartBeat()
 	fmt.Printf("I am leader: %d\n", agent.ID)
 }
 
-func (agent *Agent) sendHeartBeat() {
+func (agent Agent) sendHeartBeat() {
 	fmt.Printf("leader heartbeat: %d\n", agent.ID)
 	agent.timeout = time.AfterFunc(heartBeatFrequency, agent.sendHeartBeat)
 	for _, otherAgent := range agent.agentCallbacks {
-		otherAgent.appendEntries(AppendEntriesRequest{agent.currentTerm, agent.ID, 0, 0, []LogEntry{}, 0})
+		otherAgent.appendEntries(AppendEntriesRequest{agent.currentTerm, agent.id, 0, 0, []LogEntry{}, 0})
 	}
 }
 
-func (agent *Agent) handleRequestVoteRPC(request VoteRequest) VoteResponse {
+func (agent Agent) handleRequestVoteRPC(request VoteRequest) VoteResponse {
 	fmt.Printf("vote request: %d\n", agent.ID)
 	if request.term < agent.currentTerm {
 		return VoteResponse{agent.currentTerm, false}
@@ -131,12 +146,12 @@ func (agent *Agent) handleRequestVoteRPC(request VoteRequest) VoteResponse {
 	return VoteResponse{agent.currentTerm, false}
 }
 
-func (agent *Agent) startTimeout() {
+func (agent Agent) startTimeout() {
 	termTime := generateTimeoutDuration()
 	agent.timeout = time.AfterFunc(termTime, agent.beginElection)
 }
 
-func (agent *Agent) resetTimeout() {
+func (agent Agent) resetTimeout() {
 	termTime := generateTimeoutDuration()
 	if !agent.timeout.Stop() {
 		<-agent.timeout.C
@@ -148,7 +163,7 @@ func generateTimeoutDuration() time.Duration {
 	return time.Duration(rand.Int63n(150) + 150)
 }
 
-func (agent *Agent) beginElection() {
+func (agent Agent) beginElection() {
 	fmt.Printf("BEGIN ELECTION %d\n", agent.ID)
 	agent.state = candidate
 	agent.currentTerm++
@@ -156,10 +171,10 @@ func (agent *Agent) beginElection() {
 	agent.requestVotes()
 }
 
-func (agent *Agent) requestVotes() {
+func (agent Agent) requestVotes() {
 	voteRequest := VoteRequest{
 		term:         agent.currentTerm,
-		candidateID:  agent.ID,
+		candidateID:  agent.id,
 		lastLogIndex: agent.getLastLogIndex(),
 		lastLogTerm:  agent.getLastLogTerm(),
 	}
@@ -168,7 +183,7 @@ func (agent *Agent) requestVotes() {
 	}
 }
 
-func (agent *Agent) handleAppendEntries(request AppendEntriesRequest) AppendEntriesResponse {
+func (agent Agent) handleAppendEntriesRPC(request AppendEntriesRequest) AppendEntriesResponse {
 	fmt.Printf("handleAppendEntries: %d\n", agent.ID)
 	agent.resetTimeout()
 	// TODO finish implementation of handling AppendLogsRPC
@@ -182,7 +197,7 @@ func (agent *Agent) handleAppendEntries(request AppendEntriesRequest) AppendEntr
 	return AppendEntriesResponse{}
 }
 
-func (agent *Agent) appendLogs(prevLogIndex int, entries []LogEntry) {
+func (agent Agent) appendLogs(prevLogIndex int, entries []LogEntry) {
 	index := prevLogIndex
 	for _, entry := range entries {
 		agent.addToLog(index, entry)
@@ -190,7 +205,7 @@ func (agent *Agent) appendLogs(prevLogIndex int, entries []LogEntry) {
 	}
 }
 
-func (agent *Agent) addToLog(index int, entry LogEntry) {
+func (agent Agent) addToLog(index int, entry LogEntry) {
 	if len(agent.log) <= index {
 		agent.log = append(agent.log, entry)
 	} else {
@@ -198,15 +213,15 @@ func (agent *Agent) addToLog(index int, entry LogEntry) {
 	}
 }
 
-func (agent *Agent) handleAppendEntriesResponse(response AppendEntriesResponse) {
+func (agent Agent) handleAppendEntriesResponse(response AppendEntriesResponse) {
 
 }
 
-func (agent *Agent) getLastLogIndex() int {
+func (agent Agent) getLastLogIndex() int {
 	return len(agent.log)
 }
 
-func (agent *Agent) getLastLogTerm() int {
+func (agent Agent) getLastLogTerm() int {
 	logLen := len(agent.log)
 	if logLen == 0 {
 		return 0
@@ -214,11 +229,11 @@ func (agent *Agent) getLastLogTerm() int {
 	return agent.log[logLen-1].Term
 }
 
-func (agent *Agent) numAgents() int {
+func (agent Agent) numAgents() int {
 	return len(agent.agentCallbacks) + 1
 }
 
 //AddCallback : use this to add to the callbacks slice for an agent to communicate
-func (agent *Agent) AddCallback(a AgentCallback) {
+func (agent Agent) AddCallback(a AgentCallback) {
 	agent.agentCallbacks = append(agent.agentCallbacks, a)
 }

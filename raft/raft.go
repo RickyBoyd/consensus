@@ -11,7 +11,6 @@ func NewRaftInstance(numAgents int) {
 		appendEntriesRequest := make(chan AppendEntriesRequestChan, 1000)
 		appendEntriesResponse := make(chan AppendEntriesResponse, 1000)
 		agent := NewAgent(id)
-		fmt.Printf("ID: %d\n", agent.ID)
 		agentEventHandler := EventHandler{
 			agent:                 agent,
 			requestVoteRPC:        voteRequest,
