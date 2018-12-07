@@ -8,7 +8,7 @@ import (
 func main() {
 	fmt.Printf("Hello\n")
 
-	raft.NewRaftInstance(3)
+	raft.ConstructRaftChanInstance(3)
 
 	//exit := make(chan string)
 	// Spawn all you worker goroutines, and send a message to exit when you're done.
