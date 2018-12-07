@@ -107,7 +107,7 @@ func (agent Agent) handleTimeout() {
 }
 
 func (agent Agent) handleRequestVoteResponse(response VoteResponse) {
-	fmt.Printf("handleRequestVoteResponse: %d\n", agent.ID)
+	fmt.Printf("handleRequestVoteResponse: %d\n", agent.ID())
 	if response.votedFor {
 		agent.numVotes++
 		if agent.numVotes > agent.numAgents()/2 {
@@ -122,11 +122,11 @@ func (agent Agent) becomeLeader() {
 	agent.state = leader
 	//TODO FINISH THIS
 	agent.sendHeartBeat()
-	fmt.Printf("I am leader: %d\n", agent.ID)
+	fmt.Printf("I am leader: %d\n", agent.ID())
 }
 
 func (agent Agent) sendHeartBeat() {
-	fmt.Printf("leader heartbeat: %d\n", agent.ID)
+	fmt.Printf("leader heartbeat: %d\n", agent.ID())
 	agent.timeout = time.AfterFunc(heartBeatFrequency, agent.sendHeartBeat)
 	for _, otherAgent := range agent.agentCallbacks {
 		otherAgent.appendEntries(AppendEntriesRequest{agent.currentTerm, agent.id, 0, 0, []LogEntry{}, 0})
@@ -134,7 +134,7 @@ func (agent Agent) sendHeartBeat() {
 }
 
 func (agent Agent) handleRequestVoteRPC(request VoteRequest) VoteResponse {
-	fmt.Printf("vote request: %d\n", agent.ID)
+	fmt.Printf("vote request: %d\n", agent.ID())
 	if request.term < agent.currentTerm {
 		return VoteResponse{agent.currentTerm, false}
 	}
@@ -164,7 +164,7 @@ func generateTimeoutDuration() time.Duration {
 }
 
 func (agent Agent) beginElection() {
-	fmt.Printf("BEGIN ELECTION %d\n", agent.ID)
+	fmt.Printf("BEGIN ELECTION %d\n", agent.ID())
 	agent.state = candidate
 	agent.currentTerm++
 	agent.numVotes = 1
@@ -184,7 +184,7 @@ func (agent Agent) requestVotes() {
 }
 
 func (agent Agent) handleAppendEntriesRPC(request AppendEntriesRequest) AppendEntriesResponse {
-	fmt.Printf("handleAppendEntries: %d\n", agent.ID)
+	fmt.Printf("handleAppendEntries: %d\n", agent.ID())
 	agent.resetTimeout()
 	// TODO finish implementation of handling AppendLogsRPC
 	if request.term < agent.currentTerm {
