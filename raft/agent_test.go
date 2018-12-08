@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -26,6 +27,14 @@ func (a MockCallback) requestVote(request VoteRequest) {
 func (a MockCallback) appendEntries(request AppendEntriesRequest) {
 }
 
+func assertEqual(t *testing.T, expected interface{}, actual interface{}, message string) {
+	if expected == actual {
+		return
+	}
+	message = fmt.Sprintf("Expected: %v != Actual: %v\n%s", expected, actual, message)
+	t.Fatal(message)
+}
+
 func generateTestLog(commandsPerTerm []int) []LogEntry {
 	log := make([]LogEntry, 0)
 	for term, numCommands := range commandsPerTerm {
@@ -40,24 +49,29 @@ func addLogTest(t *testing.T, commandsPerTerm []int, entry LogEntry, index int, 
 	logs := generateTestLog([]int{3, 4})
 	agent := Agent{log: logs}
 	agent.addToLog(index, entry)
-
-	if len(agent.log) != expectedLength {
-		t.Error("Expected length: ", expectedLength, ", actual: ", len(agent.log))
-	}
-	if agent.log[index] != entry {
-		t.Error("Expected: ", entry, " Actual: ", agent.log[index])
-	}
+	assertEqual(t, expectedLength, len(agent.log), "")
+	assertEqual(t, agent.log[index], entry, "")
 }
 func TestAddLogAppends(t *testing.T) {
-	entry := LogEntry{3, 5}
+	entry := LogEntry{3, 1}
 	addLogTest(t, []int{3, 4}, entry, 7, 8)
 }
 
 func TestAddLogOverwritesAtEnd(t *testing.T) {
-	entry := LogEntry{3, 5}
+	entry := LogEntry{3, 1}
 	addLogTest(t, []int{3, 4}, entry, 6, 7)
 }
 func TestAddLogOverwrites(t *testing.T) {
-	entry := LogEntry{3, 5}
+	entry := LogEntry{3, 1}
 	addLogTest(t, []int{3, 4}, entry, 3, 7)
+}
+
+func TestNumAgentsIsOne(t *testing.T) {
+	agent := NewAgent(0)
+	assertEqual(t, 1, agent.numAgents(), "")
+}
+func TestNumAgents(t *testing.T) {
+	agent := NewAgent(0)
+	agent.AddCallback(AgentChannelRPC{})
+	assertEqual(t, 2, agent.numAgents(), "")
 }
