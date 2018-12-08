@@ -119,10 +119,12 @@ func (agent Agent) handleRequestVoteResponse(response VoteResponse) {
 }
 
 func (agent Agent) becomeLeader() {
-	agent.state = leader
-	//TODO FINISH THIS
-	agent.sendHeartBeat()
-	fmt.Printf("I am leader: %d\n", agent.ID())
+	if agent.state == candidate {
+		agent.state = leader
+		//TODO FINISH THIS
+		agent.sendHeartBeat()
+		fmt.Printf("I am leader: %d\n", agent.ID())
+	}
 }
 
 func (agent Agent) sendHeartBeat() {
