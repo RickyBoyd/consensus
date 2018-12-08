@@ -34,8 +34,8 @@ func (agentRPC AgentChannelRPC) appendEntries(request AppendEntriesRequest) {
 	agentRPC.appendEntriesRPC <- AppendEntriesRequestChan{request, agentRPC.appendEntriesResponse}
 }
 
-//EventHandler which uses channels to forward requests and responses to an AgentInterface
-type EventHandler struct {
+//AgentChannelEventHandler which uses channels to forward requests and responses to an AgentInterface
+type AgentChannelEventHandler struct {
 	agent                 AgentInterface
 	requestVoteRPC        chan VoteRequestChan
 	requestVoteResponse   chan VoteResponse
@@ -43,12 +43,12 @@ type EventHandler struct {
 	appendEntriesResponse chan AppendEntriesResponse
 }
 
-func (eventHandler *EventHandler) start() {
+func (eventHandler *AgentChannelEventHandler) start() {
 	eventHandler.agent.start()
 	eventHandler.eventLoop()
 }
 
-func (eventHandler *EventHandler) eventLoop() {
+func (eventHandler *AgentChannelEventHandler) eventLoop() {
 	for true {
 		select {
 		case request := <-eventHandler.requestVoteRPC:

@@ -13,13 +13,13 @@ func ConstructRaftChanInstance(numAgents int) {
 func newRaftInstance(agents []AgentInterface) {
 	// Need to create RPC channels and
 	numAgents := len(agents)
-	agentEventHandlers := make([]EventHandler, 0)
+	agentEventHandlers := make([]AgentChannelEventHandler, 0)
 	for id := 0; id < numAgents; id++ {
 		voteRequest := make(chan VoteRequestChan, 1000)
 		voteResponse := make(chan VoteResponse, 1000)
 		appendEntriesRequest := make(chan AppendEntriesRequestChan, 1000)
 		appendEntriesResponse := make(chan AppendEntriesResponse, 1000)
-		agentEventHandler := EventHandler{
+		agentEventHandler := AgentChannelEventHandler{
 			agent:                 agents[id],
 			requestVoteRPC:        voteRequest,
 			requestVoteResponse:   voteResponse,
