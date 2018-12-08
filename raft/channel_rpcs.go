@@ -16,8 +16,8 @@ type AppendEntriesRequestChan struct {
 	responseChan chan AppendEntriesResponse
 }
 
-//ChanRPCImp manages RPCs for an Agent
-type ChanRPCImp struct {
+//AgentChannelRPC manages RPCs for an Agent
+type AgentChannelRPC struct {
 	//	ID                    int
 	requestVoteRPC        chan VoteRequestChan
 	requestVoteResponse   chan VoteResponse
@@ -25,12 +25,12 @@ type ChanRPCImp struct {
 	appendEntriesResponse chan AppendEntriesResponse
 }
 
-func (agentRPC ChanRPCImp) requestVote(request VoteRequest) {
+func (agentRPC AgentChannelRPC) requestVote(request VoteRequest) {
 	fmt.Printf("Vote 4 me\n")
 	agentRPC.requestVoteRPC <- VoteRequestChan{request, agentRPC.requestVoteResponse}
 }
 
-func (agentRPC ChanRPCImp) appendEntries(request AppendEntriesRequest) {
+func (agentRPC AgentChannelRPC) appendEntries(request AppendEntriesRequest) {
 	agentRPC.appendEntriesRPC <- AppendEntriesRequestChan{request, agentRPC.appendEntriesResponse}
 }
 
