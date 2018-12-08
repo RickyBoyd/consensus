@@ -36,7 +36,7 @@ func (agent MockAgent) start() {
 
 }
 
-func (agent MockAgent) AddCallback(AgentCallback) {
+func (agent MockAgent) AddCallback(AgentRPC) {
 
 }
 

@@ -30,8 +30,8 @@ type AppendEntriesResponse struct {
 	success bool
 }
 
-//AgentCallback interface defines callbacks
-type AgentCallback interface {
+//AgentRPC interface defines callbacks
+type AgentRPC interface {
 	requestVote(vote VoteRequest)
 	appendEntries(request AppendEntriesRequest)
 }

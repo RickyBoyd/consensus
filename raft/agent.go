@@ -38,15 +38,15 @@ type AgentInterface interface {
 	handleRequestVoteRPC(request VoteRequest) VoteResponse
 	handleRequestVoteResponse(response VoteResponse)
 	start()
-	AddCallback(AgentCallback)
+	AddCallback(AgentRPC)
 	ID() int
 }
 
 //Agent type
 type Agent struct {
-	id             int
-	agentCallbacks []AgentCallback
-	state          agentState
+	id        int
+	agentRPCs []AgentRPC
+	state     agentState
 	// Channels to receive events
 	timeout *time.Timer
 	//	requestVoteRPC        chan VoteRequest
@@ -71,17 +71,17 @@ type Agent struct {
 //NewAgent creates a new agent
 func NewAgent(id int) Agent {
 	agent := Agent{
-		id:             id,
-		agentCallbacks: make([]AgentCallback, 0),
-		state:          follower,
-		currentTerm:    0,
-		votedFor:       -1,
-		log:            make([]LogEntry, 0),
-		commitIndex:    0,
-		lastApplied:    0,
-		nextIndex:      make([]int, 0),
-		matchIndex:     make([]int, 0),
-		numVotes:       0,
+		id:          id,
+		agentRPCs:   make([]AgentRPC, 0),
+		state:       follower,
+		currentTerm: 0,
+		votedFor:    -1,
+		log:         make([]LogEntry, 0),
+		commitIndex: 0,
+		lastApplied: 0,
+		nextIndex:   make([]int, 0),
+		matchIndex:  make([]int, 0),
+		numVotes:    0,
 	}
 	return agent
 }
@@ -130,7 +130,7 @@ func (agent Agent) becomeLeader() {
 func (agent Agent) sendHeartBeat() {
 	fmt.Printf("leader heartbeat: %d\n", agent.ID())
 	agent.timeout = time.AfterFunc(heartBeatFrequency, agent.sendHeartBeat)
-	for _, otherAgent := range agent.agentCallbacks {
+	for _, otherAgent := range agent.agentRPCs {
 		otherAgent.appendEntries(AppendEntriesRequest{agent.currentTerm, agent.id, 0, 0, []LogEntry{}, 0})
 	}
 }
@@ -180,7 +180,7 @@ func (agent Agent) requestVotes() {
 		lastLogIndex: agent.getLastLogIndex(),
 		lastLogTerm:  agent.getLastLogTerm(),
 	}
-	for _, otherAgent := range agent.agentCallbacks {
+	for _, otherAgent := range agent.agentRPCs {
 		otherAgent.requestVote(voteRequest)
 	}
 }
@@ -232,10 +232,10 @@ func (agent Agent) getLastLogTerm() int {
 }
 
 func (agent Agent) numAgents() int {
-	return len(agent.agentCallbacks) + 1
+	return len(agent.agentRPCs) + 1
 }
 
 //AddCallback : use this to add to the callbacks slice for an agent to communicate
-func (agent Agent) AddCallback(a AgentCallback) {
-	agent.agentCallbacks = append(agent.agentCallbacks, a)
+func (agent Agent) AddCallback(a AgentRPC) {
+	agent.agentRPCs = append(agent.agentRPCs, a)
 }
