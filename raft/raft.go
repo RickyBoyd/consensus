@@ -40,6 +40,7 @@ func newRaftInstance(agents []AgentInterface) {
 				continue
 			} else {
 				callback := AgentChannelRPC{
+					id:                    j,
 					requestVoteRPC:        agentEventHandlers[j].requestVoteRPC,
 					requestVoteResponse:   agentEventHandlers[i].requestVoteResponse,
 					appendEntriesRPC:      agentEventHandlers[j].appendEntriesRPC,

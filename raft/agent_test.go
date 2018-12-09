@@ -66,6 +66,30 @@ func TestAddLogOverwrites(t *testing.T) {
 	addLogTest(t, []int{3, 4}, entry, 3, 7)
 }
 
+func TestAddEntriesToLogDeletes(t *testing.T) {
+	agent := NewAgent(0)
+	agent.log = generateTestLog([]int{1, 2})
+	agent.addEntriesToLog(0, []LogEntry{LogEntry{0, 0}})
+	assertEqual(t, 2, len(agent.log), "")
+	assertEqual(t, LogEntry{0, 0}, agent.log[1], "")
+}
+func TestAddEntriesToLogAppends(t *testing.T) {
+	agent := NewAgent(0)
+	agent.log = generateTestLog([]int{1, 2})
+	agent.addEntriesToLog(2, []LogEntry{LogEntry{0, 0}})
+	assertEqual(t, 4, len(agent.log), "")
+	assertEqual(t, LogEntry{0, 0}, agent.log[3], "")
+}
+
+func TestAddEntriesToLogOverwritesAndAppends(t *testing.T) {
+	agent := NewAgent(0)
+	agent.log = generateTestLog([]int{1, 2})
+	agent.addEntriesToLog(1, []LogEntry{LogEntry{0, 0}, LogEntry{0, 1}})
+	assertEqual(t, 4, len(agent.log), "")
+	assertEqual(t, LogEntry{0, 0}, agent.log[2], "")
+	assertEqual(t, LogEntry{0, 1}, agent.log[3], "")
+}
+
 func TestNumAgentsIsOne(t *testing.T) {
 	agent := NewAgent(0)
 	assertEqual(t, 1, agent.numAgents(), "")

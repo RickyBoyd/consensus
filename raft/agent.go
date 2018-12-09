@@ -72,7 +72,7 @@ func NewAgent(id int) *Agent {
 		state:       follower,
 		currentTerm: 0,
 		votedFor:    -1,
-		log:         make([]LogEntry, 0),
+		log:         []LogEntry{LogEntry{0, 0}},
 		commitIndex: 0,
 		lastApplied: 0,
 		nextIndex:   make(map[int]int),
@@ -163,9 +163,13 @@ func (agent *Agent) sendHeartBeat() {
 	agent.timeout = time.AfterFunc(heartBeatFrequency, agent.sendHeartBeat)
 	for _, otherAgent := range agent.agentRPCs {
 		//TODO finish
-		entries := []LogEntry{}
+		nextIndex := agent.nextIndex[otherAgent.ID()]
+		entries := agent.log[nextIndex:]
 		prevLogIndex := 0
-		prevLogTerm := 0
+		if nextIndex > 0 {
+			prevLogIndex = nextIndex - 1
+		}
+		prevLogTerm := agent.log[prevLogIndex].Term
 		otherAgent.appendEntries(AppendEntriesRequest{agent.currentTerm, agent.id, prevLogIndex, prevLogTerm, entries, agent.commitIndex})
 	}
 }
@@ -225,19 +229,20 @@ func (agent *Agent) handleAppendEntriesRPC(request AppendEntriesRequest) AppendE
 	if (len(agent.log) - 1) > request.prevLogIndex {
 		return AppendEntriesResponse{agent.currentTerm, false, agent.id}
 	}
-	agent.appendLogs(request.prevLogIndex, request.entries)
+	agent.addEntriesToLog(request.prevLogIndex, request.entries)
 	fmt.Printf("Here in append rpc: myterm %d, req term: %d\n", agent.currentTerm, request.term)
 	agent.updateTerm(request.term)
 	//TODO fill in
-	return AppendEntriesResponse{}
+	return AppendEntriesResponse{agent.currentTerm, true, agent.id}
 }
 
-func (agent *Agent) appendLogs(prevLogIndex int, entries []LogEntry) {
-	index := prevLogIndex
+func (agent *Agent) addEntriesToLog(prevLogIndex int, entries []LogEntry) {
+	index := prevLogIndex + 1
 	for _, entry := range entries {
 		agent.addToLog(index, entry)
 		index++
 	}
+	agent.log = agent.log[:index]
 }
 
 func (agent *Agent) addToLog(index int, entry LogEntry) {
@@ -249,7 +254,11 @@ func (agent *Agent) addToLog(index int, entry LogEntry) {
 }
 
 func (agent *Agent) handleAppendEntriesResponse(response AppendEntriesResponse) {
+	if response.success {
 
+	} else {
+		agent.nextIndex[response.id]--
+	}
 }
 
 func (agent *Agent) updateTerm(newTerm int) {

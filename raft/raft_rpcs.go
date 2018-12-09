@@ -36,4 +36,5 @@ type AppendEntriesResponse struct {
 type AgentRPC interface {
 	requestVote(vote VoteRequest)
 	appendEntries(request AppendEntriesRequest)
+	ID() int
 }
