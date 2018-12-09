@@ -75,3 +75,12 @@ func TestNumAgents(t *testing.T) {
 	agent.AddCallback(AgentChannelRPC{})
 	assertEqual(t, 2, agent.numAgents(), "")
 }
+
+func TestInitializeNextIndex(t *testing.T) {
+	agent := NewAgent(0)
+	agent.log = generateTestLog([]int{1, 2})
+	agent.initialiseNextIndex()
+	for _, index := range agent.nextIndex {
+		assertEqual(t, 3, index, "")
+	}
+}

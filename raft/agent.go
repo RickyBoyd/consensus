@@ -57,8 +57,8 @@ type Agent struct {
 	commitIndex int
 	lastApplied int
 	// Volatile state on leaders
-	nextIndex  []int
-	matchIndex []int
+	nextIndex  map[int]int
+	matchIndex map[int]int
 	heartbeat  *time.Timer
 	// State to maintain election status
 	numVotes int
@@ -75,8 +75,8 @@ func NewAgent(id int) *Agent {
 		log:         make([]LogEntry, 0),
 		commitIndex: 0,
 		lastApplied: 0,
-		nextIndex:   make([]int, 0),
-		matchIndex:  make([]int, 0),
+		nextIndex:   make(map[int]int),
+		matchIndex:  make(map[int]int),
 		numVotes:    0,
 	}
 	return &agent
@@ -145,9 +145,16 @@ func (agent *Agent) becomeLeader() {
 	if agent.state == candidate {
 		agent.state = leader
 		//TODO FINISH THIS
+		agent.initialiseNextIndex()
 		agent.sendHeartBeat()
 		agent.stopElectionTimeout()
 		fmt.Printf("I am leader: %d\n", agent.ID())
+	}
+}
+
+func (agent *Agent) initialiseNextIndex() {
+	for id := range agent.nextIndex {
+		agent.nextIndex[id] = len(agent.log)
 	}
 }
 
@@ -155,14 +162,22 @@ func (agent *Agent) sendHeartBeat() {
 	//fmt.Printf("leader heartbeat: %d\n", agent.ID())
 	agent.timeout = time.AfterFunc(heartBeatFrequency, agent.sendHeartBeat)
 	for _, otherAgent := range agent.agentRPCs {
-		otherAgent.appendEntries(AppendEntriesRequest{agent.currentTerm, agent.id, 0, 0, []LogEntry{}, 0})
+		//TODO finish
+		entries := []LogEntry{}
+		prevLogIndex := 0
+		prevLogTerm := 0
+		otherAgent.appendEntries(AppendEntriesRequest{agent.currentTerm, agent.id, prevLogIndex, prevLogTerm, entries, agent.commitIndex})
 	}
+}
+
+func (agent *Agent) sendAppendEntries() {
+
 }
 
 func (agent *Agent) handleRequestVoteRPC(request VoteRequest) VoteResponse {
 	fmt.Printf("vote request: %d from %d\n", agent.ID(), request.candidateID)
 	if request.term < agent.currentTerm {
-		return VoteResponse{agent.currentTerm, false}
+		return VoteResponse{agent.currentTerm, false, agent.id}
 	}
 	if agent.votedFor == -1 &&
 		request.lastLogTerm >= agent.getLastLogTerm() &&
@@ -171,9 +186,9 @@ func (agent *Agent) handleRequestVoteRPC(request VoteRequest) VoteResponse {
 		fmt.Printf("Voting for %v from %d\n", request, agent.id)
 		agent.votedFor = request.candidateID
 		agent.updateTerm(request.term)
-		return VoteResponse{agent.currentTerm, true}
+		return VoteResponse{agent.currentTerm, true, agent.id}
 	}
-	return VoteResponse{agent.currentTerm, false}
+	return VoteResponse{agent.currentTerm, false, agent.id}
 }
 
 func (agent *Agent) startTimeout() {
@@ -205,14 +220,15 @@ func (agent *Agent) handleAppendEntriesRPC(request AppendEntriesRequest) AppendE
 	// TODO finish implementation of handling AppendLogsRPC
 	agent.state = follower
 	if request.term < agent.currentTerm {
-		return AppendEntriesResponse{agent.currentTerm, false}
+		return AppendEntriesResponse{agent.currentTerm, false, agent.id}
 	}
 	if (len(agent.log) - 1) > request.prevLogIndex {
-		return AppendEntriesResponse{agent.currentTerm, false}
+		return AppendEntriesResponse{agent.currentTerm, false, agent.id}
 	}
 	agent.appendLogs(request.prevLogIndex, request.entries)
 	fmt.Printf("Here in append rpc: myterm %d, req term: %d\n", agent.currentTerm, request.term)
 	agent.updateTerm(request.term)
+	//TODO fill in
 	return AppendEntriesResponse{}
 }
 

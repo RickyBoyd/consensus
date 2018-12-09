@@ -12,6 +12,7 @@ type VoteRequest struct {
 type VoteResponse struct {
 	term     int
 	votedFor bool
+	id       int
 }
 
 //AppendEntriesRequest type for AppendEntriesRPC
@@ -28,6 +29,7 @@ type AppendEntriesRequest struct {
 type AppendEntriesResponse struct {
 	term    int
 	success bool
+	id      int
 }
 
 //AgentRPC interface defines callbacks
