@@ -1,9 +1,5 @@
 package raft
 
-import (
-	"fmt"
-)
-
 //VoteRequestChan gives the coms manager the channel to respond to
 type VoteRequestChan struct {
 	request      VoteRequest
@@ -26,7 +22,6 @@ type AgentChannelRPC struct {
 }
 
 func (agentRPC AgentChannelRPC) requestVote(request VoteRequest) {
-	fmt.Printf("Vote 4 me\n")
 	agentRPC.requestVoteRPC <- VoteRequestChan{request, agentRPC.requestVoteResponse}
 }
 

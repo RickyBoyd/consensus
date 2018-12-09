@@ -10,8 +10,7 @@ func ConstructRaftChanInstance(numAgents int) {
 	newRaftInstance(agents)
 }
 
-func newRaftInstance(agents []AgentInterface) {
-	// Need to create RPC channels and
+func constructEventHandlers(agents []AgentInterface) *[]AgentChannelEventHandler {
 	numAgents := len(agents)
 	agentEventHandlers := make([]AgentChannelEventHandler, 0)
 	for id := 0; id < numAgents; id++ {
@@ -28,6 +27,13 @@ func newRaftInstance(agents []AgentInterface) {
 		}
 		agentEventHandlers = append(agentEventHandlers, agentEventHandler)
 	}
+	return &agentEventHandlers
+}
+
+func newRaftInstance(agents []AgentInterface) {
+	// Need to create RPC channels and
+	numAgents := len(agents)
+	agentEventHandlers := *constructEventHandlers(agents)
 	for i := 0; i < numAgents; i++ {
 		for j := 0; j < numAgents; j++ {
 			if j == i {

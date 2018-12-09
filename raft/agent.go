@@ -95,10 +95,37 @@ func (agent *Agent) start() {
 func (agent *Agent) handleTimeout() {
 	if agent.state == candidate {
 		agent.beginElection()
-	} else if agent.state == follower {
+	} else if agent.state == follower &&
+		!agent.grantedVote() {
 		agent.beginElection()
 	} else {
-		fmt.Printf("Timed out when leader")
+		fmt.Printf("Timed out when leader? ID:%d\n", agent.id)
+	}
+	agent.resetTimeout()
+}
+
+func (agent *Agent) grantedVote() bool {
+	return agent.votedFor != -1
+}
+
+func (agent *Agent) beginElection() {
+	fmt.Printf("BEGIN ELECTION %d\n", agent.ID())
+	agent.state = candidate
+	agent.currentTerm++
+	agent.votedFor = agent.id
+	agent.numVotes = 1
+	agent.requestVotes()
+}
+
+func (agent *Agent) requestVotes() {
+	voteRequest := VoteRequest{
+		term:         agent.currentTerm,
+		candidateID:  agent.id,
+		lastLogIndex: agent.getLastLogIndex(),
+		lastLogTerm:  agent.getLastLogTerm(),
+	}
+	for _, otherAgent := range agent.agentRPCs {
+		otherAgent.requestVote(voteRequest)
 	}
 }
 
@@ -119,12 +146,13 @@ func (agent *Agent) becomeLeader() {
 		agent.state = leader
 		//TODO FINISH THIS
 		agent.sendHeartBeat()
+		agent.stopElectionTimeout()
 		fmt.Printf("I am leader: %d\n", agent.ID())
 	}
 }
 
 func (agent *Agent) sendHeartBeat() {
-	fmt.Printf("leader heartbeat: %d\n", agent.ID())
+	//fmt.Printf("leader heartbeat: %d\n", agent.ID())
 	agent.timeout = time.AfterFunc(heartBeatFrequency, agent.sendHeartBeat)
 	for _, otherAgent := range agent.agentRPCs {
 		otherAgent.appendEntries(AppendEntriesRequest{agent.currentTerm, agent.id, 0, 0, []LogEntry{}, 0})
@@ -132,13 +160,17 @@ func (agent *Agent) sendHeartBeat() {
 }
 
 func (agent *Agent) handleRequestVoteRPC(request VoteRequest) VoteResponse {
-	fmt.Printf("vote request: %d\n", agent.ID())
+	fmt.Printf("vote request: %d from %d\n", agent.ID(), request.candidateID)
 	if request.term < agent.currentTerm {
 		return VoteResponse{agent.currentTerm, false}
 	}
 	if agent.votedFor == -1 &&
 		request.lastLogTerm >= agent.getLastLogTerm() &&
 		request.lastLogIndex >= agent.getLastLogIndex() {
+
+		fmt.Printf("Voting for %v from %d\n", request, agent.id)
+		agent.votedFor = request.candidateID
+		agent.updateTerm(request.term)
 		return VoteResponse{agent.currentTerm, true}
 	}
 	return VoteResponse{agent.currentTerm, false}
@@ -157,34 +189,21 @@ func (agent *Agent) resetTimeout() {
 	agent.timeout.Reset(termTime)
 }
 
+func (agent *Agent) stopElectionTimeout() {
+	if !agent.timeout.Stop() {
+		<-agent.timeout.C
+	}
+}
+
 func generateTimeoutDuration() time.Duration {
 	return time.Duration(rand.Int63n(150) + 150)
-}
-
-func (agent *Agent) beginElection() {
-	fmt.Printf("BEGIN ELECTION %d\n", agent.ID())
-	agent.state = candidate
-	agent.currentTerm++
-	agent.numVotes = 1
-	agent.requestVotes()
-}
-
-func (agent *Agent) requestVotes() {
-	voteRequest := VoteRequest{
-		term:         agent.currentTerm,
-		candidateID:  agent.id,
-		lastLogIndex: agent.getLastLogIndex(),
-		lastLogTerm:  agent.getLastLogTerm(),
-	}
-	for _, otherAgent := range agent.agentRPCs {
-		otherAgent.requestVote(voteRequest)
-	}
 }
 
 func (agent *Agent) handleAppendEntriesRPC(request AppendEntriesRequest) AppendEntriesResponse {
 	fmt.Printf("handleAppendEntries: %d\n", agent.ID())
 	agent.resetTimeout()
 	// TODO finish implementation of handling AppendLogsRPC
+	agent.state = follower
 	if request.term < agent.currentTerm {
 		return AppendEntriesResponse{agent.currentTerm, false}
 	}
@@ -192,6 +211,8 @@ func (agent *Agent) handleAppendEntriesRPC(request AppendEntriesRequest) AppendE
 		return AppendEntriesResponse{agent.currentTerm, false}
 	}
 	agent.appendLogs(request.prevLogIndex, request.entries)
+	fmt.Printf("Here in append rpc: myterm %d, req term: %d\n", agent.currentTerm, request.term)
+	agent.updateTerm(request.term)
 	return AppendEntriesResponse{}
 }
 
@@ -213,6 +234,14 @@ func (agent *Agent) addToLog(index int, entry LogEntry) {
 
 func (agent *Agent) handleAppendEntriesResponse(response AppendEntriesResponse) {
 
+}
+
+func (agent *Agent) updateTerm(newTerm int) {
+	if newTerm > agent.currentTerm {
+		agent.state = follower
+		agent.currentTerm = newTerm
+		agent.resetTimeout()
+	}
 }
 
 func (agent *Agent) getLastLogIndex() int {
