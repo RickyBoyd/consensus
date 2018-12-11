@@ -70,6 +70,7 @@ func NewAgent(id int) *Agent {
 		id:          id,
 		agentRPCs:   make([]AgentRPC, 0),
 		state:       follower,
+		timeout:     time.NewTimer(0),
 		currentTerm: 0,
 		votedFor:    -1,
 		log:         []LogEntry{LogEntry{0, 0}},
@@ -77,6 +78,7 @@ func NewAgent(id int) *Agent {
 		lastApplied: 0,
 		nextIndex:   make(map[int]int),
 		matchIndex:  make(map[int]int),
+		heartbeat:   time.NewTimer(0),
 		numVotes:    0,
 	}
 	return &agent
@@ -223,6 +225,7 @@ func (agent *Agent) handleAppendEntriesRPC(request AppendEntriesRequest) AppendE
 	agent.resetTimeout()
 	// TODO finish implementation of handling AppendLogsRPC
 	agent.state = follower
+	agent.votedFor = -1
 	if request.term < agent.currentTerm {
 		return AppendEntriesResponse{agent.currentTerm, false, agent.id}
 	}
