@@ -35,14 +35,14 @@ func assertEqual(t *testing.T, expected interface{}, actual interface{}, message
 	t.Fatal(message)
 }
 
-func generateTestLog(commandsPerTerm []int) []LogEntry {
+func generateTestLog(commandsPerTerm []int) AgentLog {
 	log := make([]LogEntry, 0)
 	for term, numCommands := range commandsPerTerm {
 		for command := 0; command < numCommands; command++ {
 			log = append(log, LogEntry{command, term})
 		}
 	}
-	return log
+	return AgentLog{log}
 }
 
 func addLogTest(t *testing.T, commandsPerTerm []int, entry LogEntry, index int, expectedLength int) {
@@ -50,10 +50,10 @@ func addLogTest(t *testing.T, commandsPerTerm []int, entry LogEntry, index int, 
 	logs := generateTestLog([]int{3, 4})
 	agent := Agent{log: logs}
 	//When
-	agent.addToLog(index, entry)
+	agent.log.addToLog(index, entry)
 	//Then
-	assertEqual(t, expectedLength, len(agent.log), "")
-	assertEqual(t, agent.log[index], entry, "")
+	assertEqual(t, expectedLength, agent.log.length(), "")
+	assertEqual(t, agent.log.entries[index], entry, "")
 }
 func TestAddLogAppends(t *testing.T) {
 	entry := LogEntry{3, 1}
@@ -74,20 +74,20 @@ func TestAddEntriesToLogDeletes(t *testing.T) {
 	agent := NewAgent(0)
 	agent.log = generateTestLog([]int{1, 2})
 	//When
-	agent.addEntriesToLog(0, []LogEntry{LogEntry{0, 0}})
+	agent.log.addEntriesToLog(0, []LogEntry{LogEntry{0, 0}})
 	//Then
-	assertEqual(t, 2, len(agent.log), "")
-	assertEqual(t, LogEntry{0, 0}, agent.log[1], "")
+	assertEqual(t, 2, agent.log.length(), "")
+	assertEqual(t, LogEntry{0, 0}, agent.log.entries[1], "")
 }
 func TestAddEntriesToLogAppends(t *testing.T) {
 	//Given
 	agent := NewAgent(0)
 	agent.log = generateTestLog([]int{1, 2})
 	//When
-	agent.addEntriesToLog(2, []LogEntry{LogEntry{0, 0}})
+	agent.log.addEntriesToLog(2, []LogEntry{LogEntry{0, 0}})
 	//Then
-	assertEqual(t, 4, len(agent.log), "")
-	assertEqual(t, LogEntry{0, 0}, agent.log[3], "")
+	assertEqual(t, 4, agent.log.length(), "")
+	assertEqual(t, LogEntry{0, 0}, agent.log.entries[3], "")
 }
 
 func TestAddEntriesToLogOverwritesAndAppends(t *testing.T) {
@@ -95,11 +95,11 @@ func TestAddEntriesToLogOverwritesAndAppends(t *testing.T) {
 	agent := NewAgent(0)
 	agent.log = generateTestLog([]int{1, 2})
 	//When
-	agent.addEntriesToLog(1, []LogEntry{LogEntry{0, 0}, LogEntry{0, 1}})
+	agent.log.addEntriesToLog(1, []LogEntry{LogEntry{0, 0}, LogEntry{0, 1}})
 	//Then
-	assertEqual(t, 4, len(agent.log), "")
-	assertEqual(t, LogEntry{0, 0}, agent.log[2], "")
-	assertEqual(t, LogEntry{0, 1}, agent.log[3], "")
+	assertEqual(t, 4, agent.log.length(), "")
+	assertEqual(t, LogEntry{0, 0}, agent.log.entries[2], "")
+	assertEqual(t, LogEntry{0, 1}, agent.log.entries[3], "")
 }
 
 func TestNumAgentsIsOne(t *testing.T) {
@@ -139,8 +139,8 @@ func TestHandleAppendEntries(t *testing.T) {
 	response := agent.handleAppendEntriesRPC(request)
 
 	//Then
-	assertEqual(t, 2, len(agent.log), "")
-	assertEqual(t, newLog, agent.log[1], "")
+	assertEqual(t, 2, agent.log.length(), "")
+	assertEqual(t, newLog, agent.log.entries[1], "")
 
 	assertEqual(t, AppendEntriesResponse{1, true, 0}, response, "")
 }
@@ -154,9 +154,9 @@ func TestHandleAppendEntriesMultipleLogs(t *testing.T) {
 	response := agent.handleAppendEntriesRPC(request)
 
 	//Then
-	assertEqual(t, 3, len(agent.log), "")
-	assertEqual(t, newEntries[0], agent.log[1], "")
-	assertEqual(t, newEntries[1], agent.log[2], "")
+	assertEqual(t, 3, agent.log.length(), "")
+	assertEqual(t, newEntries[0], agent.log.entries[1], "")
+	assertEqual(t, newEntries[1], agent.log.entries[2], "")
 
 	assertEqual(t, AppendEntriesResponse{1, true, 0}, response, "")
 }
@@ -172,9 +172,9 @@ func TestHandleAppendEntriesMultipleRequests(t *testing.T) {
 	response2 := agent.handleAppendEntriesRPC(request2)
 
 	//Then
-	assertEqual(t, 3, len(agent.log), "")
-	assertEqual(t, newEntries[0], agent.log[1], "")
-	assertEqual(t, newEntries[1], agent.log[2], "")
+	assertEqual(t, 3, agent.log.length(), "")
+	assertEqual(t, newEntries[0], agent.log.entries[1], "")
+	assertEqual(t, newEntries[1], agent.log.entries[2], "")
 
 	assertEqual(t, AppendEntriesResponse{1, true, 0}, response1, "")
 	assertEqual(t, AppendEntriesResponse{1, true, 0}, response2, "")

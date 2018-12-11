@@ -52,7 +52,7 @@ type Agent struct {
 	//Persistent state on all servers
 	currentTerm int
 	votedFor    int
-	log         []LogEntry
+	log         AgentLog
 	// Volatile state on all servers
 	commitIndex int
 	lastApplied int
@@ -73,7 +73,7 @@ func NewAgent(id int) *Agent {
 		timeout:     time.NewTimer(0),
 		currentTerm: 0,
 		votedFor:    -1,
-		log:         []LogEntry{LogEntry{0, 0}},
+		log:         AgentLog{[]LogEntry{LogEntry{0, 0}}},
 		commitIndex: 0,
 		lastApplied: 0,
 		nextIndex:   make(map[int]int),
@@ -123,8 +123,8 @@ func (agent *Agent) requestVotes() {
 	voteRequest := VoteRequest{
 		term:         agent.currentTerm,
 		candidateID:  agent.id,
-		lastLogIndex: agent.getLastLogIndex(),
-		lastLogTerm:  agent.getLastLogTerm(),
+		lastLogIndex: agent.log.getLastLogIndex(),
+		lastLogTerm:  agent.log.getLastLogTerm(),
 	}
 	for _, otherAgent := range agent.agentRPCs {
 		otherAgent.requestVote(voteRequest)
@@ -156,7 +156,7 @@ func (agent *Agent) becomeLeader() {
 
 func (agent *Agent) initialiseNextIndex() {
 	for id := range agent.nextIndex {
-		agent.nextIndex[id] = len(agent.log)
+		agent.nextIndex[id] = agent.log.length()
 	}
 }
 
@@ -166,12 +166,12 @@ func (agent *Agent) sendHeartBeat() {
 	for _, otherAgent := range agent.agentRPCs {
 		//TODO finish
 		nextIndex := agent.nextIndex[otherAgent.ID()]
-		entries := agent.log[nextIndex:]
+		entries := agent.log.entries[nextIndex:]
 		prevLogIndex := 0
 		if nextIndex > 0 {
 			prevLogIndex = nextIndex - 1
 		}
-		prevLogTerm := agent.log[prevLogIndex].Term
+		prevLogTerm := agent.log.entries[prevLogIndex].Term
 		otherAgent.appendEntries(AppendEntriesRequest{agent.currentTerm, agent.id, prevLogIndex, prevLogTerm, entries, agent.commitIndex})
 	}
 }
@@ -186,8 +186,8 @@ func (agent *Agent) handleRequestVoteRPC(request VoteRequest) VoteResponse {
 		return VoteResponse{agent.currentTerm, false, agent.id}
 	}
 	if agent.votedFor == -1 &&
-		request.lastLogTerm >= agent.getLastLogTerm() &&
-		request.lastLogIndex >= agent.getLastLogIndex() {
+		request.lastLogTerm >= agent.log.getLastLogTerm() &&
+		request.lastLogIndex >= agent.log.getLastLogIndex() {
 
 		fmt.Printf("Voting for %v from %d\n", request, agent.id)
 		agent.votedFor = request.candidateID
@@ -229,31 +229,14 @@ func (agent *Agent) handleAppendEntriesRPC(request AppendEntriesRequest) AppendE
 	if request.term < agent.currentTerm {
 		return AppendEntriesResponse{agent.currentTerm, false, agent.id}
 	}
-	if (len(agent.log) - 1) < request.prevLogIndex {
+	if (agent.log.length() - 1) < request.prevLogIndex {
 		return AppendEntriesResponse{agent.currentTerm, false, agent.id}
 	}
-	agent.addEntriesToLog(request.prevLogIndex, request.entries)
+	agent.log.addEntriesToLog(request.prevLogIndex, request.entries)
 	fmt.Printf("Here in append rpc: myterm %d, req term: %d\n", agent.currentTerm, request.term)
 	agent.updateTerm(request.term)
 	//TODO fill in
 	return AppendEntriesResponse{agent.currentTerm, true, agent.id}
-}
-
-func (agent *Agent) addEntriesToLog(prevLogIndex int, entries []LogEntry) {
-	index := prevLogIndex + 1
-	for _, entry := range entries {
-		agent.addToLog(index, entry)
-		index++
-	}
-	agent.log = agent.log[:index]
-}
-
-func (agent *Agent) addToLog(index int, entry LogEntry) {
-	if index >= len(agent.log) {
-		agent.log = append(agent.log, entry)
-	} else {
-		agent.log[index] = entry
-	}
 }
 
 func (agent *Agent) handleAppendEntriesResponse(response AppendEntriesResponse) {
@@ -270,18 +253,6 @@ func (agent *Agent) updateTerm(newTerm int) {
 		agent.currentTerm = newTerm
 		agent.resetTimeout()
 	}
-}
-
-func (agent *Agent) getLastLogIndex() int {
-	return len(agent.log)
-}
-
-func (agent *Agent) getLastLogTerm() int {
-	logLen := len(agent.log)
-	if logLen == 0 {
-		return 0
-	}
-	return agent.log[logLen-1].Term
 }
 
 func (agent *Agent) numAgents() int {
