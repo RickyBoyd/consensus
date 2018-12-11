@@ -223,20 +223,19 @@ func generateTimeoutDuration() time.Duration {
 func (agent *Agent) handleAppendEntriesRPC(request AppendEntriesRequest) AppendEntriesResponse {
 	fmt.Printf("handleAppendEntries: %d\n", agent.ID())
 	agent.resetTimeout()
-	// TODO finish implementation of handling AppendLogsRPC
 	agent.state = follower
 	agent.votedFor = -1
 	if request.term < agent.currentTerm {
 		return AppendEntriesResponse{agent.currentTerm, false, agent.id}
 	}
-	if (agent.log.length()-1) < request.prevLogIndex ||
+	if agent.log.getLastLogIndex() < request.prevLogIndex ||
 		agent.log.entries[request.prevLogIndex].Term != request.prevLogTerm {
 		return AppendEntriesResponse{agent.currentTerm, false, agent.id}
 	}
 	agent.log.addEntriesToLog(request.prevLogIndex, request.entries)
 	fmt.Printf("Here in append rpc: myterm %d, req term: %d\n", agent.currentTerm, request.term)
 	agent.updateTerm(request.term)
-	//TODO fill in
+	agent.updateCommitIndex(request.leaderCommit)
 	return AppendEntriesResponse{agent.currentTerm, true, agent.id}
 }
 
@@ -253,6 +252,16 @@ func (agent *Agent) updateTerm(newTerm int) {
 		agent.state = follower
 		agent.currentTerm = newTerm
 		agent.resetTimeout()
+	}
+}
+
+func (agent *Agent) updateCommitIndex(leaderCommit int) {
+	if agent.commitIndex < leaderCommit {
+		if leaderCommit < agent.log.getLastLogIndex() {
+			agent.commitIndex = leaderCommit
+		} else {
+			agent.commitIndex = agent.log.getLastLogIndex()
+		}
 	}
 }
 

@@ -143,13 +143,15 @@ func TestHandleAppendEntries(t *testing.T) {
 	assertEqual(t, newLog, agent.log.entries[1], "")
 
 	assertEqual(t, AppendEntriesResponse{1, true, 0}, response, "")
+
+	assertEqual(t, 0, agent.commitIndex, "")
 }
 
 func TestHandleAppendEntriesMultipleLogs(t *testing.T) {
 	//Given
 	agent := NewAgent(0)
 	newEntries := []LogEntry{LogEntry{1, 1}, LogEntry{1, 2}}
-	request := AppendEntriesRequest{1, 1, 0, 0, newEntries, 0}
+	request := AppendEntriesRequest{1, 1, 0, 0, newEntries, 3}
 	//When
 	response := agent.handleAppendEntriesRPC(request)
 
@@ -159,6 +161,9 @@ func TestHandleAppendEntriesMultipleLogs(t *testing.T) {
 	assertEqual(t, newEntries[1], agent.log.entries[2], "")
 
 	assertEqual(t, AppendEntriesResponse{1, true, 0}, response, "")
+
+	// Test that commitIndex = min(eaderCommit, lastIndex)
+	assertEqual(t, 2, agent.commitIndex, "")
 }
 
 func TestHandleAppendEntriesMultipleRequests(t *testing.T) {
@@ -166,7 +171,7 @@ func TestHandleAppendEntriesMultipleRequests(t *testing.T) {
 	agent := NewAgent(0)
 	newEntries := []LogEntry{LogEntry{1, 1}, LogEntry{1, 2}}
 	request1 := AppendEntriesRequest{1, 1, 0, 0, newEntries[:1], 0}
-	request2 := AppendEntriesRequest{1, 1, 1, 1, newEntries[1:], 0}
+	request2 := AppendEntriesRequest{1, 1, 1, 1, newEntries[1:], 1}
 	//When
 	response1 := agent.handleAppendEntriesRPC(request1)
 	response2 := agent.handleAppendEntriesRPC(request2)
@@ -178,6 +183,8 @@ func TestHandleAppendEntriesMultipleRequests(t *testing.T) {
 
 	assertEqual(t, AppendEntriesResponse{1, true, 0}, response1, "")
 	assertEqual(t, AppendEntriesResponse{1, true, 0}, response2, "")
+
+	assertEqual(t, 1, agent.commitIndex, "")
 }
 
 func TestHandleAppendEntriesRejectsBadIndex(t *testing.T) {
@@ -191,6 +198,8 @@ func TestHandleAppendEntriesRejectsBadIndex(t *testing.T) {
 	//Then
 	assertEqual(t, 1, agent.log.length(), "")
 	assertEqual(t, LogEntry{0, 0}, agent.log.entries[0], "")
+
+	assertEqual(t, 0, agent.commitIndex, "")
 }
 func TestHandleAppendEntriesRejectsBadTerm(t *testing.T) {
 	//Given
@@ -203,4 +212,6 @@ func TestHandleAppendEntriesRejectsBadTerm(t *testing.T) {
 	//Then
 	assertEqual(t, 1, agent.log.length(), "")
 	assertEqual(t, LogEntry{0, 0}, agent.log.entries[0], "")
+
+	assertEqual(t, 0, agent.commitIndex, "")
 }

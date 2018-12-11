@@ -22,7 +22,7 @@ func (log *AgentLog) addToLog(index int, entry LogEntry) {
 }
 
 func (log *AgentLog) getLastLogIndex() int {
-	return len(log.entries)
+	return len(log.entries) - 1
 }
 
 func (log *AgentLog) getLastLogTerm() int {
