@@ -229,7 +229,8 @@ func (agent *Agent) handleAppendEntriesRPC(request AppendEntriesRequest) AppendE
 	if request.term < agent.currentTerm {
 		return AppendEntriesResponse{agent.currentTerm, false, agent.id}
 	}
-	if (agent.log.length() - 1) < request.prevLogIndex {
+	if (agent.log.length()-1) < request.prevLogIndex ||
+		agent.log.entries[request.prevLogIndex].Term != request.prevLogTerm {
 		return AppendEntriesResponse{agent.currentTerm, false, agent.id}
 	}
 	agent.log.addEntriesToLog(request.prevLogIndex, request.entries)

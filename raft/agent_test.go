@@ -179,3 +179,28 @@ func TestHandleAppendEntriesMultipleRequests(t *testing.T) {
 	assertEqual(t, AppendEntriesResponse{1, true, 0}, response1, "")
 	assertEqual(t, AppendEntriesResponse{1, true, 0}, response2, "")
 }
+
+func TestHandleAppendEntriesRejectsBadIndex(t *testing.T) {
+	//Given
+	agent := NewAgent(0)
+	newEntries := []LogEntry{LogEntry{1, 1}, LogEntry{1, 2}}
+	request := AppendEntriesRequest{1, 1, 1, 0, newEntries, 0}
+	//When
+	agent.handleAppendEntriesRPC(request)
+
+	//Then
+	assertEqual(t, 1, agent.log.length(), "")
+	assertEqual(t, LogEntry{0, 0}, agent.log.entries[0], "")
+}
+func TestHandleAppendEntriesRejectsBadTerm(t *testing.T) {
+	//Given
+	agent := NewAgent(0)
+	newEntries := []LogEntry{LogEntry{1, 1}, LogEntry{1, 2}}
+	request := AppendEntriesRequest{1, 1, 0, 2, newEntries, 0}
+	//When
+	agent.handleAppendEntriesRPC(request)
+
+	//Then
+	assertEqual(t, 1, agent.log.length(), "")
+	assertEqual(t, LogEntry{0, 0}, agent.log.entries[0], "")
+}
