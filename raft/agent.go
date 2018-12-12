@@ -223,8 +223,13 @@ func generateTimeoutDuration() time.Duration {
 func (agent *Agent) handleAppendEntriesRPC(request AppendEntriesRequest) AppendEntriesResponse {
 	fmt.Printf("handleAppendEntries: %d\n", agent.ID())
 	agent.resetTimeout()
-	agent.state = follower
-	agent.votedFor = -1
+	if agent.state == leader &&
+		request.term > agent.currentTerm {
+		agent.becomeFollower()
+	} else if agent.state != leader {
+		agent.becomeFollower()
+	}
+
 	if request.term < agent.currentTerm {
 		return AppendEntriesResponse{agent.currentTerm, false, agent.id}
 	}
@@ -237,6 +242,11 @@ func (agent *Agent) handleAppendEntriesRPC(request AppendEntriesRequest) AppendE
 	agent.updateTerm(request.term)
 	agent.updateCommitIndex(request.leaderCommit)
 	return AppendEntriesResponse{agent.currentTerm, true, agent.id}
+}
+
+func (agent *Agent) becomeFollower() {
+	agent.votedFor = -1
+	agent.state = follower
 }
 
 func (agent *Agent) handleAppendEntriesResponse(response AppendEntriesResponse) {
