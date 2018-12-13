@@ -48,7 +48,7 @@ type Agent struct {
 	agentRPCs []AgentRPC
 	state     agentState
 	// Channels to receive events
-	timeout *time.Timer
+	timer AgentTimer
 	//Persistent state on all servers
 	currentTerm int
 	votedFor    int
@@ -59,7 +59,6 @@ type Agent struct {
 	// Volatile state on leaders
 	nextIndex  map[int]int
 	matchIndex map[int]int
-	heartbeat  *time.Timer
 	// State to maintain election status
 	numVotes int
 }
@@ -70,7 +69,7 @@ func NewAgent(id int) *Agent {
 		id:          id,
 		agentRPCs:   make([]AgentRPC, 0),
 		state:       follower,
-		timeout:     time.NewTimer(0),
+		timer:       &RealTimer{},
 		currentTerm: 0,
 		votedFor:    -1,
 		log:         AgentLog{[]LogEntry{LogEntry{0, 0}}},
@@ -78,7 +77,6 @@ func NewAgent(id int) *Agent {
 		lastApplied: 0,
 		nextIndex:   make(map[int]int),
 		matchIndex:  make(map[int]int),
-		heartbeat:   time.NewTimer(0),
 		numVotes:    0,
 	}
 	return &agent
@@ -90,7 +88,7 @@ func (agent *Agent) ID() int {
 
 func (agent *Agent) start() {
 	duration := generateTimeoutDuration()
-	agent.timeout = time.AfterFunc(duration, agent.handleTimeout)
+	agent.timer.start(duration, agent.handleTimeout)
 	fmt.Printf("TImer: %d, ID: %d\n", duration, agent.id)
 }
 
@@ -101,6 +99,7 @@ func (agent *Agent) handleTimeout() {
 		!agent.grantedVote() {
 		agent.beginElection()
 	} else {
+		agent.sendHeartBeat()
 		fmt.Printf("Timed out when leader? ID:%d\n", agent.id)
 	}
 	agent.resetTimeout()
@@ -148,8 +147,8 @@ func (agent *Agent) becomeLeader() {
 		agent.state = leader
 		//TODO FINISH THIS
 		agent.initialiseNextIndex()
+		agent.timer.setTimeoutHandler(agent.sendHeartBeat)
 		agent.sendHeartBeat()
-		agent.stopElectionTimeout()
 		fmt.Printf("I am leader: %d\n", agent.ID())
 	}
 }
@@ -162,7 +161,6 @@ func (agent *Agent) initialiseNextIndex() {
 
 func (agent *Agent) sendHeartBeat() {
 	//fmt.Printf("leader heartbeat: %d\n", agent.ID())
-	agent.timeout = time.AfterFunc(heartBeatFrequency, agent.sendHeartBeat)
 	for _, otherAgent := range agent.agentRPCs {
 		//TODO finish
 		nextIndex := agent.nextIndex[otherAgent.ID()]
@@ -195,29 +193,6 @@ func (agent *Agent) handleRequestVoteRPC(request VoteRequest) VoteResponse {
 		return VoteResponse{agent.currentTerm, true, agent.id}
 	}
 	return VoteResponse{agent.currentTerm, false, agent.id}
-}
-
-func (agent *Agent) startTimeout() {
-	termTime := generateTimeoutDuration()
-	agent.timeout = time.AfterFunc(termTime, agent.beginElection)
-}
-
-func (agent *Agent) resetTimeout() {
-	termTime := generateTimeoutDuration()
-	if !agent.timeout.Stop() {
-		<-agent.timeout.C
-	}
-	agent.timeout.Reset(termTime)
-}
-
-func (agent *Agent) stopElectionTimeout() {
-	if !agent.timeout.Stop() {
-		<-agent.timeout.C
-	}
-}
-
-func generateTimeoutDuration() time.Duration {
-	return time.Duration(rand.Int63n(150) + 150)
 }
 
 func (agent *Agent) handleAppendEntriesRPC(request AppendEntriesRequest) AppendEntriesResponse {
@@ -273,6 +248,18 @@ func (agent *Agent) updateCommitIndex(leaderCommit int) {
 			agent.commitIndex = agent.log.getLastLogIndex()
 		}
 	}
+}
+
+func (agent *Agent) resetTimeout() {
+	duration := generateTimeoutDuration()
+	if agent.state == leader {
+		duration = 50
+	}
+	agent.timer.restart(duration)
+}
+
+func generateTimeoutDuration() time.Duration {
+	return time.Duration(rand.Int63n(150) + 150)
 }
 
 func (agent *Agent) numAgents() int {
