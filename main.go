@@ -2,22 +2,27 @@ package main
 
 import (
 	"consensus/raft"
-	"fmt"
+	"log"
+	"os"
 )
 
 func main() {
-	fmt.Printf("Hello\n")
+	f, err := os.OpenFile("info.log", os.O_WRONLY|os.O_CREATE, 0666)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	raft.ConstructRaftChanInstance(3)
+	defer f.Close()
 
-	//exit := make(chan string)
-	// Spawn all you worker goroutines, and send a message to exit when you're done.
-	for {
-		//select {
-		//case <-exit:
-		//	{
-		//		os.Exit(0)
-		//	}
-		//}
+	log.SetOutput(f)
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	log.Printf("Main")
+
+	as := raft.ConstructRaftChanInstance(3)
+
+	for j := 0; j < 750; j++ {
+		for ii := 0; ii < len(as); ii++ {
+			as[ii].Tick()
+		}
 	}
 }

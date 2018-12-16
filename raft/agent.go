@@ -2,6 +2,7 @@ package raft
 
 import (
 	"fmt"
+	"log"
 	"math/rand"
 	"time"
 )
@@ -37,7 +38,7 @@ type AgentInterface interface {
 	handleAppendEntriesResponse(response AppendEntriesResponse)
 	handleRequestVoteRPC(request VoteRequest) VoteResponse
 	handleRequestVoteResponse(response VoteResponse)
-	start()
+	tick()
 	AddCallback(AgentRPC)
 	ID() int
 }
@@ -47,8 +48,7 @@ type Agent struct {
 	id        int
 	agentRPCs []AgentRPC
 	state     agentState
-	// Channels to receive events
-	timer AgentTimer
+	timeout   int64
 	//Persistent state on all servers
 	currentTerm int
 	votedFor    int
@@ -65,11 +65,12 @@ type Agent struct {
 
 //NewAgent creates a new agent
 func NewAgent(id int) *Agent {
+	duration := generateTimeoutDuration()
 	agent := Agent{
 		id:          id,
 		agentRPCs:   make([]AgentRPC, 0),
 		state:       follower,
-		timer:       &RealTimer{},
+		timeout:     duration,
 		currentTerm: 0,
 		votedFor:    -1,
 		log:         AgentLog{[]LogEntry{LogEntry{0, 0}}},
@@ -79,28 +80,31 @@ func NewAgent(id int) *Agent {
 		matchIndex:  make(map[int]int),
 		numVotes:    0,
 	}
+	log.Printf("New agent created timeout=%d", agent.timeout)
 	return &agent
 }
 
+//ID of the agent
 func (agent *Agent) ID() int {
 	return agent.id
 }
 
-func (agent *Agent) start() {
-	duration := generateTimeoutDuration()
-	agent.timer.start(duration, agent.handleTimeout)
-	fmt.Printf("TImer: %d, ID: %d\n", duration, agent.id)
+func (agent *Agent) tick() {
+	agent.timeout--
+	if agent.timeout == 0 {
+		agent.handleTimeout()
+	}
 }
 
 func (agent *Agent) handleTimeout() {
+	agent.logEvent("act=handleTimeout")
 	if agent.state == candidate {
 		agent.beginElection()
 	} else if agent.state == follower &&
 		!agent.grantedVote() {
 		agent.beginElection()
-	} else {
+	} else if agent.state == leader {
 		agent.sendHeartBeat()
-		fmt.Printf("Timed out when leader? ID:%d\n", agent.id)
 	}
 	agent.resetTimeout()
 }
@@ -110,7 +114,7 @@ func (agent *Agent) grantedVote() bool {
 }
 
 func (agent *Agent) beginElection() {
-	fmt.Printf("BEGIN ELECTION %d\n", agent.ID())
+	agent.logEvent("act=beginElection")
 	agent.state = candidate
 	agent.currentTerm++
 	agent.votedFor = agent.id
@@ -131,7 +135,7 @@ func (agent *Agent) requestVotes() {
 }
 
 func (agent *Agent) handleRequestVoteResponse(response VoteResponse) {
-	fmt.Printf("handleRequestVoteResponse: %d\n", agent.ID())
+	agent.logEvent("act=handleRequestVoteResponse response=%+v\n", response)
 	if response.votedFor {
 		agent.numVotes++
 		if agent.numVotes > agent.numAgents()/2 {
@@ -143,13 +147,13 @@ func (agent *Agent) handleRequestVoteResponse(response VoteResponse) {
 }
 
 func (agent *Agent) becomeLeader() {
+	agent.logEvent("act=becomeLeader")
 	if agent.state == candidate {
+		agent.logEvent("act=becomeLeader transitioning to leader")
 		agent.state = leader
 		//TODO FINISH THIS
 		agent.initialiseNextIndex()
-		agent.timer.setTimeoutHandler(agent.sendHeartBeat)
 		agent.sendHeartBeat()
-		fmt.Printf("I am leader: %d\n", agent.ID())
 	}
 }
 
@@ -160,7 +164,7 @@ func (agent *Agent) initialiseNextIndex() {
 }
 
 func (agent *Agent) sendHeartBeat() {
-	//fmt.Printf("leader heartbeat: %d\n", agent.ID())
+	agent.logEvent("act=sendHeartBeat")
 	for _, otherAgent := range agent.agentRPCs {
 		//TODO finish
 		nextIndex := agent.nextIndex[otherAgent.ID()]
@@ -179,31 +183,27 @@ func (agent *Agent) sendAppendEntries() {
 }
 
 func (agent *Agent) handleRequestVoteRPC(request VoteRequest) VoteResponse {
-	fmt.Printf("vote request: %d from %d\n", agent.ID(), request.candidateID)
+	agent.logEvent("act=handleRequestVoteRPC request=%+v", request)
 	if request.term < agent.currentTerm {
 		return VoteResponse{agent.currentTerm, false, agent.id}
 	}
+	agent.updateTerm(request.term)
 	if agent.votedFor == -1 &&
 		request.lastLogTerm >= agent.log.getLastLogTerm() &&
 		request.lastLogIndex >= agent.log.getLastLogIndex() {
 
-		fmt.Printf("Voting for %v from %d\n", request, agent.id)
+		agent.logEvent("act=handleRequestVoteRPC request=%+v\n", request)
+		agent.resetTimeout()
 		agent.votedFor = request.candidateID
-		agent.updateTerm(request.term)
 		return VoteResponse{agent.currentTerm, true, agent.id}
 	}
 	return VoteResponse{agent.currentTerm, false, agent.id}
 }
 
 func (agent *Agent) handleAppendEntriesRPC(request AppendEntriesRequest) AppendEntriesResponse {
-	fmt.Printf("handleAppendEntries: %d\n", agent.ID())
+	agent.logEvent("act=handleAppendEntries")
 	agent.resetTimeout()
-	if agent.state == leader &&
-		request.term > agent.currentTerm {
-		agent.becomeFollower()
-	} else if agent.state != leader {
-		agent.becomeFollower()
-	}
+	agent.updateTerm(request.term)
 
 	if request.term < agent.currentTerm {
 		return AppendEntriesResponse{agent.currentTerm, false, agent.id}
@@ -213,15 +213,10 @@ func (agent *Agent) handleAppendEntriesRPC(request AppendEntriesRequest) AppendE
 		return AppendEntriesResponse{agent.currentTerm, false, agent.id}
 	}
 	agent.log.addEntriesToLog(request.prevLogIndex, request.entries)
-	fmt.Printf("Here in append rpc: myterm %d, req term: %d\n", agent.currentTerm, request.term)
+	agent.logEvent("Here in append rpc: myterm %d, req term: %d\n", agent.currentTerm, request.term)
 	agent.updateTerm(request.term)
 	agent.updateCommitIndex(request.leaderCommit)
 	return AppendEntriesResponse{agent.currentTerm, true, agent.id}
-}
-
-func (agent *Agent) becomeFollower() {
-	agent.votedFor = -1
-	agent.state = follower
 }
 
 func (agent *Agent) handleAppendEntriesResponse(response AppendEntriesResponse) {
@@ -235,6 +230,7 @@ func (agent *Agent) handleAppendEntriesResponse(response AppendEntriesResponse) 
 func (agent *Agent) updateTerm(newTerm int) {
 	if newTerm > agent.currentTerm {
 		agent.state = follower
+		agent.votedFor = -1
 		agent.currentTerm = newTerm
 		agent.resetTimeout()
 	}
@@ -255,11 +251,12 @@ func (agent *Agent) resetTimeout() {
 	if agent.state == leader {
 		duration = 50
 	}
-	agent.timer.restart(duration)
+	agent.logEvent("act=resetTimeout duration=%d", duration)
+	agent.timeout = duration
 }
 
-func generateTimeoutDuration() time.Duration {
-	return time.Duration(rand.Int63n(150) + 150)
+func generateTimeoutDuration() int64 {
+	return rand.Int63n(150) + 150
 }
 
 func (agent *Agent) numAgents() int {
@@ -269,4 +266,8 @@ func (agent *Agent) numAgents() int {
 //AddCallback : use this to add to the callbacks slice for an agent to communicate
 func (agent *Agent) AddCallback(rpc AgentRPC) {
 	agent.agentRPCs = append(agent.agentRPCs, rpc)
+}
+
+func (agent *Agent) logEvent(format string, args ...interface{}) {
+	log.Printf("id=%d state=%s currentTerm=%d %s", agent.id, agent.state, agent.currentTerm, fmt.Sprintf(format, args...))
 }

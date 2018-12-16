@@ -42,32 +42,29 @@ type AgentChannelEventHandler struct {
 	appendEntriesResponse chan AppendEntriesResponse
 }
 
-func (eventHandler *AgentChannelEventHandler) start() {
-	eventHandler.agent.start()
-	eventHandler.eventLoop()
-}
-
-func (eventHandler *AgentChannelEventHandler) eventLoop() {
-	for true {
-		select {
-		case request := <-eventHandler.requestVoteRPC:
-			// Deal with a request to vote
-			//fmt.Printf("Vote RPC\n")
-			response := eventHandler.agent.handleRequestVoteRPC(request.request)
-			request.responseChan <- response
-		case response := <-eventHandler.requestVoteResponse:
-			// handle a cast vote
-			//fmt.Printf("Vote Response\n")
-			eventHandler.agent.handleRequestVoteResponse(response)
-		case request := <-eventHandler.appendEntriesRPC:
-			// handle entries
-			//fmt.Printf("Logs RPC\n")
-			response := eventHandler.agent.handleAppendEntriesRPC(request.request)
-			request.responseChan <- response
-		case response := <-eventHandler.appendEntriesResponse:
-			// response to a appendEntriesRPC
-			//fmt.Printf("Logs Response\n")
-			eventHandler.agent.handleAppendEntriesResponse(response)
-		}
+//Tick function will advance time by a single tick, must be called regularly
+func (eventHandler *AgentChannelEventHandler) Tick() {
+	select {
+	case request := <-eventHandler.requestVoteRPC:
+		// Deal with a request to vote
+		//log.Printf("Vote RPC\n")
+		response := eventHandler.agent.handleRequestVoteRPC(request.request)
+		request.responseChan <- response
+	case response := <-eventHandler.requestVoteResponse:
+		// handle a cast vote
+		//log.Printf("Vote Response\n")
+		eventHandler.agent.handleRequestVoteResponse(response)
+	case request := <-eventHandler.appendEntriesRPC:
+		// handle entries
+		//log.Printf("Logs RPC\n")
+		response := eventHandler.agent.handleAppendEntriesRPC(request.request)
+		request.responseChan <- response
+	case response := <-eventHandler.appendEntriesResponse:
+		// response to a appendEntriesRPC
+		//log.Printf("Logs Response\n")
+		eventHandler.agent.handleAppendEntriesResponse(response)
+	default:
+		//do nothing
 	}
+	eventHandler.agent.tick()
 }
