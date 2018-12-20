@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
-	"time"
 )
 
 type agentState uint
@@ -15,7 +14,7 @@ const (
 	follower  agentState = 2
 )
 
-const heartBeatFrequency time.Duration = 50
+const heartBeatFrequency int64 = 50
 
 func (state agentState) String() string {
 	names := [...]string{
@@ -73,7 +72,7 @@ func NewAgent(id int) *Agent {
 		timeout:     duration,
 		currentTerm: 0,
 		votedFor:    -1,
-		log:         AgentLog{[]LogEntry{LogEntry{0, 0}}},
+		log:         newLog(),
 		commitIndex: 0,
 		lastApplied: 0,
 		nextIndex:   make(map[int]int),
@@ -168,11 +167,15 @@ func (agent *Agent) sendHeartBeat() {
 	for _, otherAgent := range agent.agentRPCs {
 		//TODO finish
 		nextIndex := agent.nextIndex[otherAgent.ID()]
-		entries := agent.log.entries[nextIndex:]
+		if nextIndex >= agent.log.length() {
+			return
+		}
+		entries := agent.log.getEntries(nextIndex)
 		prevLogIndex := 0
 		if nextIndex > 0 {
 			prevLogIndex = nextIndex - 1
 		}
+		agent.logEvent("act=sendHeartBeat prevLogIndex=%d logsize=%d", prevLogIndex, agent.log.length())
 		prevLogTerm := agent.log.entries[prevLogIndex].Term
 		otherAgent.appendEntries(AppendEntriesRequest{agent.currentTerm, agent.id, prevLogIndex, prevLogTerm, entries, agent.commitIndex})
 	}
@@ -192,7 +195,7 @@ func (agent *Agent) handleRequestVoteRPC(request VoteRequest) VoteResponse {
 		request.lastLogTerm >= agent.log.getLastLogTerm() &&
 		request.lastLogIndex >= agent.log.getLastLogIndex() {
 
-		agent.logEvent("act=handleRequestVoteRPC request=%+v\n", request)
+		agent.logEvent("act=handleRequestVoteRPC request=%+v granting vote", request)
 		agent.resetTimeout()
 		agent.votedFor = request.candidateID
 		return VoteResponse{agent.currentTerm, true, agent.id}
@@ -201,27 +204,31 @@ func (agent *Agent) handleRequestVoteRPC(request VoteRequest) VoteResponse {
 }
 
 func (agent *Agent) handleAppendEntriesRPC(request AppendEntriesRequest) AppendEntriesResponse {
-	agent.logEvent("act=handleAppendEntries")
+	agent.logEvent("act=handleAppendEntries request=%+v", request)
 	agent.resetTimeout()
 	agent.updateTerm(request.term)
 
 	if request.term < agent.currentTerm {
-		return AppendEntriesResponse{agent.currentTerm, false, agent.id}
+		return AppendEntriesResponse{agent.currentTerm, false, agent.id, -1}
 	}
 	if agent.log.getLastLogIndex() < request.prevLogIndex ||
 		agent.log.entries[request.prevLogIndex].Term != request.prevLogTerm {
-		return AppendEntriesResponse{agent.currentTerm, false, agent.id}
+		return AppendEntriesResponse{agent.currentTerm, false, agent.id, -1}
 	}
+
+	//Else its good to append the logs
+	agent.logEvent("act=handleAppendEntries request=%+v\n Appending Entries", request)
+
 	agent.log.addEntriesToLog(request.prevLogIndex, request.entries)
-	agent.logEvent("Here in append rpc: myterm %d, req term: %d\n", agent.currentTerm, request.term)
 	agent.updateTerm(request.term)
 	agent.updateCommitIndex(request.leaderCommit)
-	return AppendEntriesResponse{agent.currentTerm, true, agent.id}
+	return AppendEntriesResponse{agent.currentTerm, true, agent.id, agent.log.length()}
 }
 
 func (agent *Agent) handleAppendEntriesResponse(response AppendEntriesResponse) {
+	agent.logEvent("act=handleAppendEntriesResponse response=%+v", response)
 	if response.success {
-
+		agent.nextIndex[response.id] = response.nextIndex
 	} else {
 		agent.nextIndex[response.id]--
 	}

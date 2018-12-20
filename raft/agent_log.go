@@ -4,6 +4,12 @@ type AgentLog struct {
 	entries []LogEntry
 }
 
+func newLog() AgentLog {
+	return AgentLog{
+		entries: []LogEntry{LogEntry{0, 0}},
+	}
+}
+
 func (log *AgentLog) addEntriesToLog(prevLogIndex int, entries []LogEntry) {
 	index := prevLogIndex + 1
 	for _, entry := range entries {
@@ -31,6 +37,14 @@ func (log *AgentLog) getLastLogTerm() int {
 		return 0
 	}
 	return log.entries[logLen-1].Term
+}
+
+func (log *AgentLog) getEntries(index int) []LogEntry {
+	if index < log.length() {
+		return log.entries[index:]
+	} else {
+		return []LogEntry{}
+	}
 }
 
 func (log *AgentLog) length() int {

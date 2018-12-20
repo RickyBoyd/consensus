@@ -27,9 +27,10 @@ type AppendEntriesRequest struct {
 
 //AppendEntriesResponse type for response
 type AppendEntriesResponse struct {
-	term    int
-	success bool
-	id      int
+	term      int
+	success   bool
+	id        int
+	nextIndex int
 }
 
 //AgentRPC interface defines callbacks
