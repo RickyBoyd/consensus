@@ -147,6 +147,29 @@ func TestHandleAppendEntries(t *testing.T) {
 	assertEqual(t, 0, agent.commitIndex, "")
 }
 
+func TestHandleAppendEntriesOverwrites(t *testing.T) {
+	//Given
+	agent := NewAgent(0)
+	newLog := LogEntry{1, 1}
+	request := AppendEntriesRequest{1, 1, 0, 0, []LogEntry{newLog}, 0}
+
+	overwritingLog := LogEntry{2, 2}
+	overwritingRequest := AppendEntriesRequest{1, 1, 0, 0, []LogEntry{overwritingLog}, 0}
+
+	//When
+	response1 := agent.handleAppendEntriesRPC(request)
+	response2 := agent.handleAppendEntriesRPC(overwritingRequest)
+
+	//Then
+	assertEqual(t, 2, agent.log.length(), "")
+	assertEqual(t, overwritingLog, agent.log.entries[1], "")
+
+	assertEqual(t, AppendEntriesResponse{1, true, 0, 2}, response1, "")
+	assertEqual(t, AppendEntriesResponse{1, true, 0, 2}, response2, "")
+
+	assertEqual(t, 0, agent.commitIndex, "")
+}
+
 func TestHandleAppendEntriesMultipleLogs(t *testing.T) {
 	//Given
 	agent := NewAgent(0)
