@@ -142,7 +142,7 @@ func TestHandleAppendEntries(t *testing.T) {
 	assertEqual(t, 2, agent.log.length(), "")
 	assertEqual(t, newLog, agent.log.entries[1], "")
 
-	assertEqual(t, AppendEntriesResponse{1, true, 0}, response, "")
+	assertEqual(t, AppendEntriesResponse{1, true, 0, 2}, response, "")
 
 	assertEqual(t, 0, agent.commitIndex, "")
 }
@@ -160,7 +160,7 @@ func TestHandleAppendEntriesMultipleLogs(t *testing.T) {
 	assertEqual(t, newEntries[0], agent.log.entries[1], "")
 	assertEqual(t, newEntries[1], agent.log.entries[2], "")
 
-	assertEqual(t, AppendEntriesResponse{1, true, 0}, response, "")
+	assertEqual(t, AppendEntriesResponse{1, true, 0, 3}, response, "")
 
 	// Test that commitIndex = min(eaderCommit, lastIndex)
 	assertEqual(t, 2, agent.commitIndex, "")
@@ -181,8 +181,8 @@ func TestHandleAppendEntriesMultipleRequests(t *testing.T) {
 	assertEqual(t, newEntries[0], agent.log.entries[1], "")
 	assertEqual(t, newEntries[1], agent.log.entries[2], "")
 
-	assertEqual(t, AppendEntriesResponse{1, true, 0}, response1, "")
-	assertEqual(t, AppendEntriesResponse{1, true, 0}, response2, "")
+	assertEqual(t, AppendEntriesResponse{1, true, 0, 2}, response1, "")
+	assertEqual(t, AppendEntriesResponse{1, true, 0, 3}, response2, "")
 
 	assertEqual(t, 1, agent.commitIndex, "")
 }
