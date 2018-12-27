@@ -166,7 +166,9 @@ func (agent *Agent) sendHeartBeat() {
 	agent.logEvent("act=sendHeartBeat")
 	for _, otherAgent := range agent.agentRPCs {
 		//TODO finish
-		otherAgent.appendEntries(AppendEntriesRequest{})
+		nextIndex := agent.nextIndex[otherAgent.ID()]
+		request := agent.createAppendEntriesRequest([]LogEntry{}, nextIndex)
+		otherAgent.appendEntries(request)
 	}
 }
 
@@ -179,14 +181,19 @@ func (agent *Agent) sendAppendEntries() {
 			continue
 		}
 		entries := agent.log.getEntries(nextIndex)
-		prevLogIndex := 0
-		if nextIndex > 0 {
-			prevLogIndex = nextIndex - 1
-		}
-		agent.logEvent("act=sendHeartBeat prevLogIndex=%d logsize=%d", prevLogIndex, agent.log.length())
-		prevLogTerm := agent.log.entries[prevLogIndex].Term
-		otherAgent.appendEntries(AppendEntriesRequest{agent.currentTerm, agent.id, prevLogIndex, prevLogTerm, entries, agent.commitIndex})
+		request := agent.createAppendEntriesRequest(entries, nextIndex)
+		otherAgent.appendEntries(request)
 	}
+}
+
+func (agent *Agent) createAppendEntriesRequest(entries []LogEntry, nextIndex int) AppendEntriesRequest {
+	prevLogIndex := 0
+	if nextIndex > 0 {
+		prevLogIndex = nextIndex - 1
+	}
+	agent.logEvent("act=sendHeartBeat prevLogIndex=%d logsize=%d", prevLogIndex, agent.log.length())
+	prevLogTerm := agent.log.entries[prevLogIndex].Term
+	return AppendEntriesRequest{agent.currentTerm, agent.id, prevLogIndex, prevLogTerm, entries, agent.commitIndex}
 }
 
 func (agent *Agent) handleRequestVoteRPC(request VoteRequest) VoteResponse {
