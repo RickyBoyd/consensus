@@ -168,7 +168,7 @@ func (agent *Agent) sendHeartBeat() {
 		//TODO finish
 		nextIndex := agent.nextIndex[otherAgent.ID()]
 		if nextIndex >= agent.log.length() {
-			return
+			continue
 		}
 		entries := agent.log.getEntries(nextIndex)
 		prevLogIndex := 0
