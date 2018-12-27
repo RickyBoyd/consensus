@@ -166,6 +166,14 @@ func (agent *Agent) sendHeartBeat() {
 	agent.logEvent("act=sendHeartBeat")
 	for _, otherAgent := range agent.agentRPCs {
 		//TODO finish
+		otherAgent.appendEntries(AppendEntriesRequest{})
+	}
+}
+
+func (agent *Agent) sendAppendEntries() {
+	agent.logEvent("act=sendAppendEntries")
+	for _, otherAgent := range agent.agentRPCs {
+		//TODO finish
 		nextIndex := agent.nextIndex[otherAgent.ID()]
 		if nextIndex >= agent.log.length() {
 			continue
@@ -179,10 +187,6 @@ func (agent *Agent) sendHeartBeat() {
 		prevLogTerm := agent.log.entries[prevLogIndex].Term
 		otherAgent.appendEntries(AppendEntriesRequest{agent.currentTerm, agent.id, prevLogIndex, prevLogTerm, entries, agent.commitIndex})
 	}
-}
-
-func (agent *Agent) sendAppendEntries() {
-
 }
 
 func (agent *Agent) handleRequestVoteRPC(request VoteRequest) VoteResponse {
