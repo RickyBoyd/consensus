@@ -282,13 +282,15 @@ func (agent *Agent) updateTerm(newTerm int) {
 }
 
 func (agent *Agent) followerUpdateCommitIndex(leaderCommit int) {
+	commitUpto := agent.commitIndex
 	if agent.commitIndex < leaderCommit {
 		if leaderCommit < agent.log.getLastLogIndex() {
-			agent.commitIndex = leaderCommit
+			commitUpto = leaderCommit
 		} else {
-			agent.commitIndex = agent.log.getLastLogIndex()
+			commitUpto = agent.log.getLastLogIndex()
 		}
 	}
+	agent.commit(commitUpto + 1)
 }
 
 func (agent *Agent) resetTimeout() {
