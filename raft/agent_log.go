@@ -42,9 +42,12 @@ func (log *AgentLog) getLastLogTerm() int {
 func (log *AgentLog) getEntries(index int) []LogEntry {
 	if index < log.length() {
 		return log.entries[index:]
-	} else {
-		return []LogEntry{}
 	}
+	return []LogEntry{}
+}
+
+func (log *AgentLog) getTerm(index int) int {
+	return log.entries[index].Term
 }
 
 func (log *AgentLog) length() int {

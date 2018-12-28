@@ -257,6 +257,9 @@ func (agent *Agent) handleAppendEntriesResponse(response AppendEntriesResponse) 
 }
 
 func (agent *Agent) commit(commitUpto int) {
+	if agent.log.getTerm(commitUpto-1) != agent.currentTerm {
+		return
+	}
 	for ii := agent.commitIndex + 1; ii < commitUpto; ii++ {
 		// apply the entry at ii
 		success := agent.apply(ii)
