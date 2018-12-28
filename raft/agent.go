@@ -3,6 +3,7 @@ package raft
 import (
 	"fmt"
 	"log"
+	"math"
 	"math/rand"
 )
 
@@ -232,7 +233,7 @@ func (agent *Agent) handleAppendEntriesRPC(request AppendEntriesRequest) AppendE
 
 	agent.log.addEntriesToLog(request.prevLogIndex, request.entries)
 	agent.updateTerm(request.term)
-	agent.updateCommitIndex(request.leaderCommit)
+	agent.followerUpdateCommitIndex(request.leaderCommit)
 	return AppendEntriesResponse{agent.currentTerm, true, agent.id, agent.log.length()}
 }
 
@@ -240,9 +241,35 @@ func (agent *Agent) handleAppendEntriesResponse(response AppendEntriesResponse) 
 	agent.logEvent("act=handleAppendEntriesResponse response=%+v", response)
 	if response.success {
 		agent.nextIndex[response.id] = response.nextIndex
+		majorityThreshold := int(math.Ceil(float64(agent.numAgents()) / float64(2)))
+		replicated := 1
+		for _, nextIndex := range agent.nextIndex {
+			if nextIndex >= response.nextIndex {
+				replicated++
+			}
+		}
+		if replicated >= majorityThreshold {
+			agent.commit(response.nextIndex)
+		}
 	} else {
 		agent.nextIndex[response.id]--
 	}
+}
+
+func (agent *Agent) commit(commitUpto int) {
+	for ii := agent.commitIndex + 1; ii < commitUpto; ii++ {
+		// apply the entry at ii
+		success := agent.apply(ii)
+		if success {
+			agent.commitIndex = ii
+		} else {
+			return
+		}
+	}
+}
+
+func (agent *Agent) apply(index int) bool {
+	return true
 }
 
 func (agent *Agent) updateTerm(newTerm int) {
@@ -254,7 +281,7 @@ func (agent *Agent) updateTerm(newTerm int) {
 	}
 }
 
-func (agent *Agent) updateCommitIndex(leaderCommit int) {
+func (agent *Agent) followerUpdateCommitIndex(leaderCommit int) {
 	if agent.commitIndex < leaderCommit {
 		if leaderCommit < agent.log.getLastLogIndex() {
 			agent.commitIndex = leaderCommit
