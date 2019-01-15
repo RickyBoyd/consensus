@@ -33,9 +33,9 @@ func (agentRPC AgentChannelRPC) ID() int {
 	return agentRPC.id
 }
 
-//AgentChannelEventHandler which uses channels to forward requests and responses to an AgentInterface
+//AgentChannelEventHandler which uses channels to forward requests and responses to an Agent
 type AgentChannelEventHandler struct {
-	agent                 AgentInterface
+	Agent                 Agent
 	requestVoteRPC        chan VoteRequestChan
 	requestVoteResponse   chan VoteResponse
 	appendEntriesRPC      chan AppendEntriesRequestChan
@@ -44,27 +44,30 @@ type AgentChannelEventHandler struct {
 
 //Tick function will advance time by a single tick, must be called regularly
 func (eventHandler *AgentChannelEventHandler) Tick() {
-	select {
-	case request := <-eventHandler.requestVoteRPC:
-		// Deal with a request to vote
-		//log.Printf("Vote RPC\n")
-		response := eventHandler.agent.handleRequestVoteRPC(request.request)
-		request.responseChan <- response
-	case response := <-eventHandler.requestVoteResponse:
-		// handle a cast vote
-		//log.Printf("Vote Response\n")
-		eventHandler.agent.handleRequestVoteResponse(response)
-	case request := <-eventHandler.appendEntriesRPC:
-		// handle entries
-		//log.Printf("Logs RPC\n")
-		response := eventHandler.agent.handleAppendEntriesRPC(request.request)
-		request.responseChan <- response
-	case response := <-eventHandler.appendEntriesResponse:
-		// response to a appendEntriesRPC
-		//log.Printf("Logs Response\n")
-		eventHandler.agent.handleAppendEntriesResponse(response)
-	default:
-		//do nothing
+	eventsLeft := true
+	for eventsLeft {
+		select {
+		case request := <-eventHandler.requestVoteRPC:
+			// Deal with a request to vote
+			//log.Printf("Vote RPC\n")
+			response := eventHandler.Agent.handleRequestVoteRPC(request.request)
+			request.responseChan <- response
+		case response := <-eventHandler.requestVoteResponse:
+			// handle a cast vote
+			//log.Printf("Vote Response\n")
+			eventHandler.Agent.handleRequestVoteResponse(response)
+		case request := <-eventHandler.appendEntriesRPC:
+			// handle entries
+			//log.Printf("Logs RPC\n")
+			response := eventHandler.Agent.handleAppendEntriesRPC(request.request)
+			request.responseChan <- response
+		case response := <-eventHandler.appendEntriesResponse:
+			// response to a appendEntriesRPC
+			//log.Printf("Logs Response\n")
+			eventHandler.Agent.handleAppendEntriesResponse(response)
+		default:
+			eventsLeft = false
+		}
 	}
-	eventHandler.agent.tick()
+	eventHandler.Agent.tick()
 }

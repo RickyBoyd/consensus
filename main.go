@@ -22,6 +22,16 @@ func main() {
 
 	for j := 0; j < 750; j++ {
 		for ii := 0; ii < len(as); ii++ {
+			if j == 500 {
+				if as[ii].Agent.IsLeader() {
+					as[ii].Agent.ClientAction(2)
+				}
+			}
+			if j == 600 {
+				if as[ii].Agent.IsLeader() {
+					as[ii].Agent.ClientAction(3)
+				}
+			}
 			as[ii].Tick()
 		}
 	}

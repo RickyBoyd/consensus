@@ -13,6 +13,7 @@ const (
 	leader    agentState = 0
 	candidate agentState = 1
 	follower  agentState = 2
+	notVoted  int        = -1
 )
 
 const heartBeatFrequency int64 = 50
@@ -30,17 +31,6 @@ func (state agentState) String() string {
 type LogEntry struct {
 	Term    int
 	Command int
-}
-
-//AgentInterface defines the methods an agent needs to implement to interact with the outside wordl
-type AgentInterface interface {
-	handleAppendEntriesRPC(request AppendEntriesRequest) AppendEntriesResponse
-	handleAppendEntriesResponse(response AppendEntriesResponse)
-	handleRequestVoteRPC(request VoteRequest) VoteResponse
-	handleRequestVoteResponse(response VoteResponse)
-	tick()
-	AddCallback(AgentRPC)
-	ID() int
 }
 
 //Agent type
@@ -72,7 +62,7 @@ func NewAgent(id int) *Agent {
 		state:       follower,
 		timeout:     duration,
 		currentTerm: 0,
-		votedFor:    -1,
+		votedFor:    notVoted,
 		log:         newLog(),
 		commitIndex: 0,
 		lastApplied: 0,
@@ -82,6 +72,15 @@ func NewAgent(id int) *Agent {
 	}
 	log.Printf("New agent created timeout=%d", agent.timeout)
 	return &agent
+}
+
+func (agent *Agent) ClientAction(action int) {
+	entry := LogEntry{
+		Term:    agent.currentTerm,
+		Command: action,
+	}
+	agent.log.appendToLog(entry)
+	agent.sendAppendEntries()
 }
 
 //ID of the agent
@@ -110,7 +109,7 @@ func (agent *Agent) handleTimeout() {
 }
 
 func (agent *Agent) grantedVote() bool {
-	return agent.votedFor != -1
+	return agent.votedFor != notVoted
 }
 
 func (agent *Agent) beginElection() {
@@ -183,6 +182,7 @@ func (agent *Agent) sendAppendEntries() {
 		}
 		entries := agent.log.getEntries(nextIndex)
 		request := agent.createAppendEntriesRequest(entries, nextIndex)
+		agent.logEvent("act=sendAppendEntries request=%+v", request)
 		otherAgent.appendEntries(request)
 	}
 }
@@ -232,8 +232,8 @@ func (agent *Agent) handleAppendEntriesRPC(request AppendEntriesRequest) AppendE
 	agent.logEvent("act=handleAppendEntries request=%+v\n Appending Entries", request)
 
 	agent.log.addEntriesToLog(request.prevLogIndex, request.entries)
-	agent.updateTerm(request.term)
 	agent.followerUpdateCommitIndex(request.leaderCommit)
+	agent.logEvent("act=handleAppendEntriesComplete log=%+v", agent.log)
 	return AppendEntriesResponse{agent.currentTerm, true, agent.id, agent.log.length()}
 }
 
@@ -320,4 +320,8 @@ func (agent *Agent) AddCallback(rpc AgentRPC) {
 
 func (agent *Agent) logEvent(format string, args ...interface{}) {
 	log.Printf("id=%d state=%s currentTerm=%d %s", agent.id, agent.state, agent.currentTerm, fmt.Sprintf(format, args...))
+}
+
+func (agent *Agent) IsLeader() bool {
+	return agent.state == leader
 }

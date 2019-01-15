@@ -1,14 +1,14 @@
 package raft
 
 func ConstructRaftChanInstance(numAgents int) []*AgentChannelEventHandler {
-	agents := make([]AgentInterface, 0)
+	agents := make([]Agent, 0)
 	for ii := 0; ii < numAgents; ii++ {
-		agents = append(agents, NewAgent(ii))
+		agents = append(agents, *NewAgent(ii))
 	}
 	return newRaftInstance(agents)
 }
 
-func constructEventHandlers(agents []AgentInterface) []*AgentChannelEventHandler {
+func constructEventHandlers(agents []Agent) []*AgentChannelEventHandler {
 	numAgents := len(agents)
 	agentEventHandlers := make([]*AgentChannelEventHandler, 0)
 	for id := 0; id < numAgents; id++ {
@@ -17,7 +17,7 @@ func constructEventHandlers(agents []AgentInterface) []*AgentChannelEventHandler
 		appendEntriesRequest := make(chan AppendEntriesRequestChan, 1000)
 		appendEntriesResponse := make(chan AppendEntriesResponse, 1000)
 		agentEventHandler := AgentChannelEventHandler{
-			agent:                 agents[id],
+			Agent:                 agents[id],
 			requestVoteRPC:        voteRequest,
 			requestVoteResponse:   voteResponse,
 			appendEntriesRPC:      appendEntriesRequest,
@@ -28,7 +28,7 @@ func constructEventHandlers(agents []AgentInterface) []*AgentChannelEventHandler
 	return agentEventHandlers
 }
 
-func newRaftInstance(agents []AgentInterface) []*AgentChannelEventHandler {
+func newRaftInstance(agents []Agent) []*AgentChannelEventHandler {
 	// Need to create RPC channels and
 	numAgents := len(agents)
 	agentEventHandlers := constructEventHandlers(agents)
@@ -44,7 +44,7 @@ func newRaftInstance(agents []AgentInterface) []*AgentChannelEventHandler {
 					appendEntriesRPC:      agentEventHandlers[j].appendEntriesRPC,
 					appendEntriesResponse: agentEventHandlers[i].appendEntriesResponse,
 				}
-				agentEventHandlers[i].agent.AddCallback(callback)
+				agentEventHandlers[i].Agent.AddCallback(callback)
 			}
 		}
 	}

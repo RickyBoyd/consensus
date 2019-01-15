@@ -10,6 +10,10 @@ func newLog() AgentLog {
 	}
 }
 
+func (log *AgentLog) appendToLog(entry LogEntry) {
+	log.entries = append(log.entries, entry)
+}
+
 func (log *AgentLog) addEntriesToLog(prevLogIndex int, entries []LogEntry) {
 	index := prevLogIndex + 1
 	for _, entry := range entries {
