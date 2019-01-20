@@ -1,0 +1,9 @@
+syntax = "proto2";
+package raft;
+
+message VoteRequest {
+    required int64 term         = 1;
+    required int64 candidateId  = 2;
+    required int64 lastLogIndex = 3;
+    required int64 lastLogTerm  = 4;
+};
