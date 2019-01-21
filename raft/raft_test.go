@@ -40,3 +40,25 @@ func TestAlwaysHasOneLeaderWhenElectionForced(t *testing.T) {
 		}
 	}
 }
+
+func TestLogEntryIsReplicated(t *testing.T) {
+	as := ConstructRaftChanInstance(3)
+
+	for ticks := 0; ticks < 2000; ticks++ {
+		for ii := 0; ii < len(as); ii++ {
+			if as[ii].Agent.IsLeader() {
+				if ticks == 400 {
+					as[ii].Agent.ClientAction(3)
+				}
+			}
+			as[ii].Tick()
+		}
+	}
+	assertEqual(t, LogEntry{1, 3}, as[0].Agent.log.entries[1], "Entry was not entered")
+	assertEqual(t, LogEntry{1, 3}, as[1].Agent.log.entries[1], "Entry was not entered")
+	assertEqual(t, LogEntry{1, 3}, as[2].Agent.log.entries[1], "Entry was not entered")
+
+	assertEqual(t, 1, as[0].Agent.commitIndex, "Commit index id 0 did not get raised")
+	assertEqual(t, 1, as[1].Agent.commitIndex, "Commit index id 1 did not get raised")
+	assertEqual(t, 1, as[2].Agent.commitIndex, "Commit index id 2 did not get raised")
+}
