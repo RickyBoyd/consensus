@@ -99,17 +99,12 @@ func (agent *Agent) handleTimeout() {
 	agent.logEvent("act=handleTimeout")
 	if agent.state == candidate {
 		agent.beginElection()
-	} else if agent.state == follower &&
-		!agent.grantedVote() {
+	} else if agent.state == follower {
 		agent.beginElection()
 	} else if agent.state == leader {
 		agent.sendHeartBeat()
 	}
 	agent.resetTimeout()
-}
-
-func (agent *Agent) grantedVote() bool {
-	return agent.votedFor != notVoted
 }
 
 func (agent *Agent) beginElection() {
