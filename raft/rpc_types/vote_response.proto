@@ -1,8 +1,0 @@
-syntax = "proto2";
-package raft;
-
-message VoteResponse {
-    required int64 term         = 1;
-    required bool  votedFor     = 2;
-    required int64 id           = 3;
-};

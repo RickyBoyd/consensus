@@ -27,79 +27,144 @@ func (a MockCallback) requestVote(request VoteRequest) {
 func (a MockCallback) appendEntries(request AppendEntriesRequest) {
 }
 
-func assertEqual(t *testing.T, expected interface{}, actual interface{}, message string) {
+func assertEqual(t *testing.T, expected interface{}, actual interface{}, message string) bool {
 	if expected == actual {
+		return true
+	}
+	message = fmt.Sprintf("Expected: %v != Actual: %v\n%s", expected, actual, message)
+	t.Fatal(message)
+	return true
+}
+
+func assertLogEntryEqual(t *testing.T, expected *LogEntry, actual *LogEntry, message string) {
+	if expected.Term == actual.Term &&
+		expected.Command == actual.Command {
 		return
 	}
 	message = fmt.Sprintf("Expected: %v != Actual: %v\n%s", expected, actual, message)
 	t.Fatal(message)
 }
 
-func generateTestLog(commandsPerTerm []int) AgentLog {
-	log := make([]LogEntry, 0)
+func assertAppendEntriesRequestEqual(t *testing.T, expected AppendEntriesRequest, actual AppendEntriesRequest, message string) {
+	if expected.Term == actual.Term &&
+		expected.LeaderId == actual.LeaderId &&
+		expected.PrevLogIndex == actual.PrevLogIndex &&
+		expected.PrevLogTerm == actual.PrevLogTerm &&
+		expected.LeaderCommit == actual.LeaderCommit {
+		for ii := 0; ii < len(expected.Entries); ii++ {
+			assertLogEntryEqual(t, expected.Entries[ii], actual.Entries[ii], message)
+		}
+		return
+	}
+	message = fmt.Sprintf("Expected: %v != Actual: %v\n%s", expected, actual, message)
+	t.Fatal(message)
+}
+
+func assertAppendEntriesResponseEqual(t *testing.T, expected AppendEntriesResponse, actual AppendEntriesResponse, message string) {
+	if expected.Term == actual.Term &&
+		expected.Success == actual.Success &&
+		expected.Id == actual.Id &&
+		expected.NextIndex == actual.NextIndex {
+		return
+	}
+	message = fmt.Sprintf("Expected: %v != Actual: %v\n%s", expected, actual, message)
+	t.Fatal(message)
+}
+
+func generateTestLog(commandsPerTerm []int64) AgentLog {
+	log := make([]*LogEntry, 0)
 	for term, numCommands := range commandsPerTerm {
-		for command := 0; command < numCommands; command++ {
-			log = append(log, LogEntry{command, term})
+		for command := int64(0); command < numCommands; command++ {
+			entry := &LogEntry{
+				Term:    int64(term),
+				Command: int64(command),
+			}
+			log = append(log, entry)
 		}
 	}
 	return AgentLog{log}
 }
 
-func addLogTest(t *testing.T, commandsPerTerm []int, entry LogEntry, index int, expectedLength int) {
+func addLogTest(t *testing.T, commandsPerTerm []int64, entry *LogEntry, index int64, expectedLength int64) {
 	//Given
-	logs := generateTestLog([]int{3, 4})
+	logs := generateTestLog([]int64{3, 4})
 	agent := Agent{log: logs}
 	//When
 	agent.log.addToLog(index, entry)
 	//Then
 	assertEqual(t, expectedLength, agent.log.length(), "")
-	assertEqual(t, agent.log.entries[index], entry, "")
+	assertLogEntryEqual(t, agent.log.entries[index], entry, "")
 }
 func TestAddLogAppends(t *testing.T) {
-	entry := LogEntry{3, 1}
-	addLogTest(t, []int{3, 4}, entry, 7, 8)
+	entry := &LogEntry{
+		Term:    3,
+		Command: 1,
+	}
+	addLogTest(t, []int64{3, 4}, entry, 7, 8)
 }
 
 func TestAddLogOverwritesAtEnd(t *testing.T) {
-	entry := LogEntry{3, 1}
-	addLogTest(t, []int{3, 4}, entry, 6, 7)
+	entry := &LogEntry{
+		Term:    3,
+		Command: 1,
+	}
+	addLogTest(t, []int64{3, 4}, entry, 6, 7)
 }
 func TestAddLogOverwrites(t *testing.T) {
-	entry := LogEntry{3, 1}
-	addLogTest(t, []int{3, 4}, entry, 3, 7)
+	entry := &LogEntry{
+		Term:    3,
+		Command: 1,
+	}
+	addLogTest(t, []int64{3, 4}, entry, 3, 7)
 }
 
 func TestAddEntriesToLogDeletes(t *testing.T) {
 	//Given
 	agent := NewAgent(0)
-	agent.log = generateTestLog([]int{1, 2})
+	agent.log = generateTestLog([]int64{1, 2})
 	//When
-	agent.log.addEntriesToLog(0, []LogEntry{LogEntry{0, 0}})
+	entry := &LogEntry{
+		Term:    0,
+		Command: 0,
+	}
+	agent.log.addEntriesToLog(0, []*LogEntry{entry})
 	//Then
-	assertEqual(t, 2, agent.log.length(), "")
-	assertEqual(t, LogEntry{0, 0}, agent.log.entries[1], "")
+	assertEqual(t, int64(2), agent.log.length(), "")
+	assertLogEntryEqual(t, entry, agent.log.entries[1], "")
 }
 func TestAddEntriesToLogAppends(t *testing.T) {
 	//Given
 	agent := NewAgent(0)
-	agent.log = generateTestLog([]int{1, 2})
+	agent.log = generateTestLog([]int64{1, 2})
 	//When
-	agent.log.addEntriesToLog(2, []LogEntry{LogEntry{0, 0}})
+	entry := &LogEntry{
+		Term:    0,
+		Command: 0,
+	}
+	agent.log.addEntriesToLog(2, []*LogEntry{entry})
 	//Then
-	assertEqual(t, 4, agent.log.length(), "")
-	assertEqual(t, LogEntry{0, 0}, agent.log.entries[3], "")
+	assertEqual(t, int64(4), agent.log.length(), "")
+	assertLogEntryEqual(t, entry, agent.log.entries[3], "")
 }
 
 func TestAddEntriesToLogOverwritesAndAppends(t *testing.T) {
 	//Given
 	agent := NewAgent(0)
-	agent.log = generateTestLog([]int{1, 2})
+	agent.log = generateTestLog([]int64{1, 2})
 	//When
-	agent.log.addEntriesToLog(1, []LogEntry{LogEntry{0, 0}, LogEntry{0, 1}})
+	entry0 := &LogEntry{
+		Term:    0,
+		Command: 0,
+	}
+	entry1 := &LogEntry{
+		Term:    0,
+		Command: 0,
+	}
+	agent.log.addEntriesToLog(1, []*LogEntry{entry0, entry1})
 	//Then
-	assertEqual(t, 4, agent.log.length(), "")
-	assertEqual(t, LogEntry{0, 0}, agent.log.entries[2], "")
-	assertEqual(t, LogEntry{0, 1}, agent.log.entries[3], "")
+	assertEqual(t, int64(4), agent.log.length(), "")
+	assertLogEntryEqual(t, entry0, agent.log.entries[2], "")
+	assertLogEntryEqual(t, entry1, agent.log.entries[3], "")
 }
 
 func TestNumAgentsIsOne(t *testing.T) {
@@ -107,7 +172,7 @@ func TestNumAgentsIsOne(t *testing.T) {
 	agent := NewAgent(0)
 	//When
 	//Then
-	assertEqual(t, 1, agent.numAgents(), "")
+	assertEqual(t, int64(1), agent.numAgents(), "")
 }
 func TestNumAgents(t *testing.T) {
 	//Given
@@ -115,126 +180,175 @@ func TestNumAgents(t *testing.T) {
 	//When
 	agent.AddCallback(AgentChannelRPC{})
 	//Then
-	assertEqual(t, 2, agent.numAgents(), "")
+	assertEqual(t, int64(2), agent.numAgents(), "")
 }
 
 func TestInitializeNextIndex(t *testing.T) {
 	//Given
 	agent := NewAgent(0)
-	agent.log = generateTestLog([]int{1, 2})
+	agent.log = generateTestLog([]int64{1, 2})
 	//When
 	agent.initialiseNextIndex()
 	//Then
 	for _, index := range agent.nextIndex {
-		assertEqual(t, 3, index, "")
+		assertEqual(t, int64(3), index, "")
 	}
 }
 
 func TestHandleAppendEntries(t *testing.T) {
 	//Given
 	agent := NewAgent(0)
-	newLog := LogEntry{1, 1}
-	request := AppendEntriesRequest{1, 1, 0, 0, []LogEntry{newLog}, 0}
+	newLog := &LogEntry{
+		Term:    1,
+		Command: 1,
+	}
+	request := AppendEntriesRequest{
+		Term:         1,
+		LeaderId:     1,
+		PrevLogIndex: 0,
+		PrevLogTerm:  0,
+		LeaderCommit: 0,
+		Entries:      []*LogEntry{newLog},
+	}
 	//When
 	response := agent.handleAppendEntriesRPC(request)
 
 	//Then
-	assertEqual(t, 2, agent.log.length(), "")
+	assertEqual(t, int64(2), agent.log.length(), "")
 	assertEqual(t, newLog, agent.log.entries[1], "")
 
-	assertEqual(t, AppendEntriesResponse{1, true, 0, 2}, response, "")
+	expectedResponse := AppendEntriesResponse{
+		Term:      1,
+		Success:   true,
+		Id:        0,
+		NextIndex: 2,
+	}
+	assertAppendEntriesResponseEqual(t, expectedResponse, response, "")
 
-	assertEqual(t, 0, agent.commitIndex, "")
+	assertEqual(t, int64(0), agent.commitIndex, "")
 }
 
 func TestHandleAppendEntriesOverwrites(t *testing.T) {
 	//Given
 	agent := NewAgent(0)
-	newLog := LogEntry{1, 1}
-	request := AppendEntriesRequest{1, 1, 0, 0, []LogEntry{newLog}, 0}
+	newLog := &LogEntry{
+		Term:    1,
+		Command: 1,
+	}
+	request := AppendEntriesRequest{
+		Term:         1,
+		LeaderId:     1,
+		PrevLogIndex: 0,
+		PrevLogTerm:  0,
+		LeaderCommit: 0,
+		Entries:      []*LogEntry{newLog},
+	}
 
-	overwritingLog := LogEntry{2, 2}
-	overwritingRequest := AppendEntriesRequest{1, 1, 0, 0, []LogEntry{overwritingLog}, 0}
+	overwritingLog := &LogEntry{
+		Term:    2,
+		Command: 2,
+	}
+	overwritingRequest := AppendEntriesRequest{
+		Term:         1,
+		LeaderId:     1,
+		PrevLogIndex: 0,
+		PrevLogTerm:  0,
+		LeaderCommit: 0,
+		Entries:      []*LogEntry{overwritingLog},
+	}
 
 	//When
 	response1 := agent.handleAppendEntriesRPC(request)
 	response2 := agent.handleAppendEntriesRPC(overwritingRequest)
 
 	//Then
-	assertEqual(t, 2, agent.log.length(), "")
+	assertEqual(t, int64(2), agent.log.length(), "")
 	assertEqual(t, overwritingLog, agent.log.entries[1], "")
 
-	assertEqual(t, AppendEntriesResponse{1, true, 0, 2}, response1, "")
-	assertEqual(t, AppendEntriesResponse{1, true, 0, 2}, response2, "")
+	expectedResponse := AppendEntriesResponse{
+		Term:      1,
+		Success:   true,
+		Id:        0,
+		NextIndex: 2,
+	}
+	assertAppendEntriesResponseEqual(t, expectedResponse, response1, "")
+	assertAppendEntriesResponseEqual(t, expectedResponse, response2, "")
 
-	assertEqual(t, 0, agent.commitIndex, "")
+	assertEqual(t, int64(0), agent.commitIndex, "")
 }
 
 func TestHandleAppendEntriesMultipleLogs(t *testing.T) {
 	//Given
 	agent := NewAgent(0)
-	newEntries := []LogEntry{LogEntry{1, 1}, LogEntry{1, 2}}
-	request := AppendEntriesRequest{1, 1, 0, 0, newEntries, 3}
+	newEntries := []*LogEntry{&LogEntry{Term: 1, Command: 1}, &LogEntry{Term: 1, Command: 2}}
+	request := AppendEntriesRequest{
+		Term:         1,
+		LeaderId:     1,
+		PrevLogIndex: 0,
+		PrevLogTerm:  0,
+		LeaderCommit: 3,
+		Entries:      newEntries,
+	}
 	//When
 	response := agent.handleAppendEntriesRPC(request)
 
 	//Then
-	assertEqual(t, 3, agent.log.length(), "")
+	assertEqual(t, int64(3), agent.log.length(), "")
 	assertEqual(t, newEntries[0], agent.log.entries[1], "")
 	assertEqual(t, newEntries[1], agent.log.entries[2], "")
 
-	assertEqual(t, AppendEntriesResponse{1, true, 0, 3}, response, "")
+	assertAppendEntriesResponseEqual(t, AppendEntriesResponse{Term: 1, Success: true, Id: 0, NextIndex: 3}, response, "")
 
 	// Test that commitIndex = min(eaderCommit, lastIndex)
-	assertEqual(t, 2, agent.commitIndex, "")
+	assertEqual(t, int64(2), agent.commitIndex, "")
 }
 
 func TestHandleAppendEntriesMultipleRequests(t *testing.T) {
 	//Given
 	agent := NewAgent(0)
-	newEntries := []LogEntry{LogEntry{1, 1}, LogEntry{1, 2}}
-	request1 := AppendEntriesRequest{1, 1, 0, 0, newEntries[:1], 0}
-	request2 := AppendEntriesRequest{1, 1, 1, 1, newEntries[1:], 1}
+	newEntries := []*LogEntry{&LogEntry{Term: 1, Command: 1}, &LogEntry{Term: 1, Command: 2}}
+	request1 := AppendEntriesRequest{Term: 1, LeaderId: 1, PrevLogIndex: 0, PrevLogTerm: 0, LeaderCommit: 0, Entries: newEntries[:1]}
+	request2 := AppendEntriesRequest{Term: 1, LeaderId: 1, PrevLogIndex: 1, PrevLogTerm: 1, LeaderCommit: 1, Entries: newEntries[1:]}
 	//When
 	response1 := agent.handleAppendEntriesRPC(request1)
 	response2 := agent.handleAppendEntriesRPC(request2)
 
 	//Then
-	assertEqual(t, 3, agent.log.length(), "")
+	assertEqual(t, int64(3), agent.log.length(), "")
 	assertEqual(t, newEntries[0], agent.log.entries[1], "")
 	assertEqual(t, newEntries[1], agent.log.entries[2], "")
 
-	assertEqual(t, AppendEntriesResponse{1, true, 0, 2}, response1, "")
-	assertEqual(t, AppendEntriesResponse{1, true, 0, 3}, response2, "")
+	assertAppendEntriesResponseEqual(t, AppendEntriesResponse{Term: 1, Success: true, Id: 0, NextIndex: 2}, response1, "")
+	assertAppendEntriesResponseEqual(t, AppendEntriesResponse{Term: 1, Success: true, Id: 0, NextIndex: 3}, response2, "")
 
-	assertEqual(t, 1, agent.commitIndex, "")
+	assertEqual(t, int64(1), agent.commitIndex, "")
 }
 
 func TestHandleAppendEntriesRejectsBadIndex(t *testing.T) {
 	//Given
 	agent := NewAgent(0)
-	newEntries := []LogEntry{LogEntry{1, 1}, LogEntry{1, 2}}
-	request := AppendEntriesRequest{1, 1, 1, 0, newEntries, 0}
+	newEntries := []*LogEntry{&LogEntry{Term: 1, Command: 1}, &LogEntry{Term: 1, Command: 2}}
+	request := AppendEntriesRequest{Term: 1, LeaderId: 1, PrevLogIndex: 1, PrevLogTerm: 0, LeaderCommit: 0, Entries: newEntries}
 	//When
 	agent.handleAppendEntriesRPC(request)
 
 	//Then
-	assertEqual(t, 1, agent.log.length(), "")
-	assertEqual(t, LogEntry{0, 0}, agent.log.entries[0], "")
+	assertEqual(t, int64(1), agent.log.length(), "")
+	assertLogEntryEqual(t, &LogEntry{Term: 0, Command: 0}, agent.log.entries[0], "")
 
-	assertEqual(t, 0, agent.commitIndex, "")
+	assertEqual(t, int64(0), agent.commitIndex, "")
 }
 func TestHandleAppendEntriesRejectsBadTerm(t *testing.T) {
 	//Given
 	agent := NewAgent(0)
-	newEntries := []LogEntry{LogEntry{1, 1}, LogEntry{1, 2}}
-	request := AppendEntriesRequest{1, 1, 0, 2, newEntries, 0}
+	newEntries := []*LogEntry{&LogEntry{Term: 1, Command: 1}, &LogEntry{Term: 1, Command: 2}}
+	request := AppendEntriesRequest{Term: 1, LeaderId: 1, PrevLogIndex: 0, PrevLogTerm: 2, LeaderCommit: 0, Entries: newEntries}
 	//When
 	agent.handleAppendEntriesRPC(request)
 
 	//Then
-	assertEqual(t, 1, agent.log.length(), "")
-	assertEqual(t, LogEntry{0, 0}, agent.log.entries[0], "")
+	assertEqual(t, int64(1), agent.log.length(), "")
+	assertLogEntryEqual(t, &LogEntry{Term: 0, Command: 0}, agent.log.entries[0], "")
 
-	assertEqual(t, 0, agent.commitIndex, "")
+	assertEqual(t, int64(0), agent.commitIndex, "")
 }

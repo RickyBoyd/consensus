@@ -14,7 +14,7 @@ type AppendEntriesRequestChan struct {
 
 //AgentChannelRPC manages RPCs for an Agent
 type AgentChannelRPC struct {
-	id                    int
+	id                    int64
 	requestVoteRPC        chan VoteRequestChan
 	requestVoteResponse   chan VoteResponse
 	appendEntriesRPC      chan AppendEntriesRequestChan
@@ -29,7 +29,7 @@ func (agentRPC AgentChannelRPC) appendEntries(request AppendEntriesRequest) {
 	agentRPC.appendEntriesRPC <- AppendEntriesRequestChan{request, agentRPC.appendEntriesResponse}
 }
 
-func (agentRPC AgentChannelRPC) ID() int {
+func (agentRPC AgentChannelRPC) ID() int64 {
 	return agentRPC.id
 }
 

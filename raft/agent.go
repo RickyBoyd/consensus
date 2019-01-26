@@ -13,7 +13,7 @@ const (
 	leader    agentState = 0
 	candidate agentState = 1
 	follower  agentState = 2
-	notVoted  int        = -1
+	notVoted  int64      = -1
 )
 
 const heartBeatFrequency int64 = 50
@@ -27,34 +27,35 @@ func (state agentState) String() string {
 	return names[state]
 }
 
-//LogEntry type
-type LogEntry struct {
-	Term    int
-	Command int
+//AgentRPC interface defines callbacks
+type AgentRPC interface {
+	requestVote(vote VoteRequest)
+	appendEntries(request AppendEntriesRequest)
+	ID() int64
 }
 
 //Agent type
 type Agent struct {
-	id        int
+	id        int64
 	agentRPCs []AgentRPC
 	state     agentState
 	timeout   int64
 	//Persistent state on all servers
-	currentTerm int
-	votedFor    int
+	currentTerm int64
+	votedFor    int64
 	log         AgentLog
 	// Volatile state on all servers
-	commitIndex int
-	lastApplied int
+	commitIndex int64
+	lastApplied int64
 	// Volatile state on leaders
-	nextIndex  map[int]int
-	matchIndex map[int]int
+	nextIndex  map[int64]int64
+	matchIndex map[int64]int64
 	// State to maintain election status
-	numVotes int
+	numVotes int64
 }
 
 //NewAgent creates a new agent
-func NewAgent(id int) *Agent {
+func NewAgent(id int64) *Agent {
 	duration := generateTimeoutDuration()
 	agent := Agent{
 		id:          id,
@@ -66,16 +67,16 @@ func NewAgent(id int) *Agent {
 		log:         newLog(),
 		commitIndex: 0,
 		lastApplied: 0,
-		nextIndex:   make(map[int]int),
-		matchIndex:  make(map[int]int),
+		nextIndex:   make(map[int64]int64),
+		matchIndex:  make(map[int64]int64),
 		numVotes:    0,
 	}
 	log.Printf("New agent created timeout=%d", agent.timeout)
 	return &agent
 }
 
-func (agent *Agent) ClientAction(action int) {
-	entry := LogEntry{
+func (agent *Agent) ClientAction(action int64) {
+	entry := &LogEntry{
 		Term:    agent.currentTerm,
 		Command: action,
 	}
@@ -84,7 +85,7 @@ func (agent *Agent) ClientAction(action int) {
 }
 
 //ID of the agent
-func (agent *Agent) ID() int {
+func (agent *Agent) ID() int64 {
 	return agent.id
 }
 
@@ -118,10 +119,10 @@ func (agent *Agent) beginElection() {
 
 func (agent *Agent) requestVotes() {
 	voteRequest := VoteRequest{
-		term:         agent.currentTerm,
-		candidateID:  agent.id,
-		lastLogIndex: agent.log.getLastLogIndex(),
-		lastLogTerm:  agent.log.getLastLogTerm(),
+		Term:         agent.currentTerm,
+		CandidateId:  agent.id,
+		LastLogIndex: agent.log.getLastLogIndex(),
+		LastLogTerm:  agent.log.getLastLogTerm(),
 	}
 	for _, otherAgent := range agent.agentRPCs {
 		otherAgent.requestVote(voteRequest)
@@ -130,7 +131,7 @@ func (agent *Agent) requestVotes() {
 
 func (agent *Agent) handleRequestVoteResponse(response VoteResponse) {
 	agent.logEvent("act=handleRequestVoteResponse response=%+v\n", response)
-	if response.votedFor {
+	if response.VotedFor {
 		agent.numVotes++
 		if agent.numVotes > agent.numAgents()/2 {
 			//THEN BECOME LEADER
@@ -148,6 +149,7 @@ func (agent *Agent) becomeLeader() {
 		//TODO FINISH THIS
 		agent.initialiseNextIndex()
 		agent.sendHeartBeat()
+		agent.resetTimeout()
 	}
 }
 
@@ -162,7 +164,7 @@ func (agent *Agent) sendHeartBeat() {
 	for _, otherAgent := range agent.agentRPCs {
 		//TODO finish
 		nextIndex := agent.nextIndex[otherAgent.ID()]
-		request := agent.createAppendEntriesRequest([]LogEntry{}, nextIndex)
+		request := agent.createAppendEntriesRequest([]*LogEntry{}, nextIndex)
 		otherAgent.appendEntries(request)
 	}
 }
@@ -182,76 +184,110 @@ func (agent *Agent) sendAppendEntries() {
 	}
 }
 
-func (agent *Agent) createAppendEntriesRequest(entries []LogEntry, nextIndex int) AppendEntriesRequest {
-	prevLogIndex := 0
+func (agent *Agent) createAppendEntriesRequest(entries []*LogEntry, nextIndex int64) AppendEntriesRequest {
+	var prevLogIndex int64 = 0
 	if nextIndex > 0 {
 		prevLogIndex = nextIndex - 1
 	}
 	agent.logEvent("act=sendHeartBeat prevLogIndex=%d logsize=%d", prevLogIndex, agent.log.length())
 	prevLogTerm := agent.log.entries[prevLogIndex].Term
-	return AppendEntriesRequest{agent.currentTerm, agent.id, prevLogIndex, prevLogTerm, entries, agent.commitIndex}
+	return AppendEntriesRequest{
+		Term:         agent.currentTerm,
+		LeaderId:     agent.id,
+		PrevLogIndex: prevLogIndex,
+		PrevLogTerm:  prevLogTerm,
+		LeaderCommit: agent.commitIndex,
+		Entries:      entries,
+	}
 }
 
 func (agent *Agent) handleRequestVoteRPC(request VoteRequest) VoteResponse {
 	agent.logEvent("act=handleRequestVoteRPC request=%+v", request)
-	if request.term < agent.currentTerm {
-		return VoteResponse{agent.currentTerm, false, agent.id}
+	if request.Term < agent.currentTerm {
+		return VoteResponse{
+			Term:     agent.currentTerm,
+			VotedFor: false,
+			Id:       agent.id,
+		}
 	}
-	agent.updateTerm(request.term)
+	agent.updateTerm(request.Term)
 	if agent.votedFor == -1 &&
-		request.lastLogTerm >= agent.log.getLastLogTerm() &&
-		request.lastLogIndex >= agent.log.getLastLogIndex() {
+		request.LastLogTerm >= agent.log.getLastLogTerm() &&
+		request.LastLogIndex >= agent.log.getLastLogIndex() {
 
 		agent.logEvent("act=handleRequestVoteRPC request=%+v granting vote", request)
 		agent.resetTimeout()
-		agent.votedFor = request.candidateID
-		return VoteResponse{agent.currentTerm, true, agent.id}
+		agent.votedFor = request.CandidateId
+		return VoteResponse{
+			Term:     agent.currentTerm,
+			VotedFor: true,
+			Id:       agent.id,
+		}
 	}
-	return VoteResponse{agent.currentTerm, false, agent.id}
+	return VoteResponse{
+		Term:     agent.currentTerm,
+		VotedFor: false,
+		Id:       agent.id,
+	}
 }
 
 func (agent *Agent) handleAppendEntriesRPC(request AppendEntriesRequest) AppendEntriesResponse {
 	agent.logEvent("act=handleAppendEntries request=%+v", request)
 	agent.resetTimeout()
-	agent.updateTerm(request.term)
+	agent.updateTerm(request.Term)
 
-	if request.term < agent.currentTerm {
-		return AppendEntriesResponse{agent.currentTerm, false, agent.id, -1}
+	if request.Term < agent.currentTerm {
+		return AppendEntriesResponse{
+			Term:      agent.currentTerm,
+			Success:   false,
+			Id:        agent.id,
+			NextIndex: -1,
+		}
 	}
-	if agent.log.getLastLogIndex() < request.prevLogIndex ||
-		agent.log.entries[request.prevLogIndex].Term != request.prevLogTerm {
-		return AppendEntriesResponse{agent.currentTerm, false, agent.id, -1}
+	if agent.log.getLastLogIndex() < request.PrevLogIndex ||
+		agent.log.entries[request.PrevLogIndex].Term != request.PrevLogTerm {
+		return AppendEntriesResponse{
+			Term:      agent.currentTerm,
+			Success:   false,
+			Id:        agent.id,
+			NextIndex: -1,
+		}
 	}
 
 	//Else its good to append the logs
 	agent.logEvent("act=handleAppendEntries request=%+v\n Appending Entries", request)
 
-	agent.log.addEntriesToLog(request.prevLogIndex, request.entries)
-	agent.followerUpdateCommitIndex(request.leaderCommit)
+	agent.log.addEntriesToLog(request.PrevLogIndex, request.Entries)
+	agent.followerUpdateCommitIndex(request.LeaderCommit)
 	agent.logEvent("act=handleAppendEntriesComplete log=%+v", agent.log)
-	return AppendEntriesResponse{agent.currentTerm, true, agent.id, agent.log.length()}
+	return AppendEntriesResponse{
+		Term:      agent.currentTerm,
+		Success:   true,
+		Id:        agent.id,
+		NextIndex: agent.log.length(),
+	}
 }
 
 func (agent *Agent) handleAppendEntriesResponse(response AppendEntriesResponse) {
 	agent.logEvent("act=handleAppendEntriesResponse response=%+v", response)
-	if response.success {
-		agent.nextIndex[response.id] = response.nextIndex
+	if response.Success {
+		agent.nextIndex[response.Id] = response.NextIndex
 		majorityThreshold := int(math.Ceil(float64(agent.numAgents()) / float64(2)))
 		replicated := 1
 		for _, nextIndex := range agent.nextIndex {
-			if nextIndex >= response.nextIndex {
+			if nextIndex >= response.NextIndex {
 				replicated++
 			}
 		}
 		if replicated >= majorityThreshold {
-			agent.commit(response.nextIndex)
+			agent.commit(response.NextIndex)
 		}
 	} else {
-		agent.nextIndex[response.id]--
+		agent.nextIndex[response.Id]--
 	}
 }
 
-func (agent *Agent) commit(commitUpto int) {
+func (agent *Agent) commit(commitUpto int64) {
 	if agent.log.getTerm(commitUpto-1) != agent.currentTerm {
 		return
 	}
@@ -266,11 +302,11 @@ func (agent *Agent) commit(commitUpto int) {
 	}
 }
 
-func (agent *Agent) apply(index int) bool {
+func (agent *Agent) apply(index int64) bool {
 	return true
 }
 
-func (agent *Agent) updateTerm(newTerm int) {
+func (agent *Agent) updateTerm(newTerm int64) {
 	if newTerm > agent.currentTerm {
 		agent.state = follower
 		agent.votedFor = -1
@@ -279,7 +315,7 @@ func (agent *Agent) updateTerm(newTerm int) {
 	}
 }
 
-func (agent *Agent) followerUpdateCommitIndex(leaderCommit int) {
+func (agent *Agent) followerUpdateCommitIndex(leaderCommit int64) {
 	commitUpto := agent.commitIndex
 	if agent.commitIndex < leaderCommit {
 		if leaderCommit < agent.log.getLastLogIndex() {
@@ -294,7 +330,7 @@ func (agent *Agent) followerUpdateCommitIndex(leaderCommit int) {
 func (agent *Agent) resetTimeout() {
 	duration := generateTimeoutDuration()
 	if agent.state == leader {
-		duration = 50
+		duration = 20
 	}
 	agent.logEvent("act=resetTimeout duration=%d", duration)
 	agent.timeout = duration
@@ -304,8 +340,8 @@ func generateTimeoutDuration() int64 {
 	return rand.Int63n(150) + 150
 }
 
-func (agent *Agent) numAgents() int {
-	return len(agent.agentRPCs) + 1
+func (agent *Agent) numAgents() int64 {
+	return int64(len(agent.agentRPCs) + 1)
 }
 
 //AddCallback : use this to add to the callbacks slice for an agent to communicate

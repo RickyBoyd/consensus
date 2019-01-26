@@ -3,7 +3,7 @@ package raft
 func ConstructRaftChanInstance(numAgents int) []*AgentChannelEventHandler {
 	agents := make([]Agent, 0)
 	for ii := 0; ii < numAgents; ii++ {
-		agents = append(agents, *NewAgent(ii))
+		agents = append(agents, *NewAgent(int64(ii)))
 	}
 	return newRaftInstance(agents)
 }
@@ -38,7 +38,7 @@ func newRaftInstance(agents []Agent) []*AgentChannelEventHandler {
 				continue
 			} else {
 				callback := AgentChannelRPC{
-					id:                    j,
+					id:                    int64(j),
 					requestVoteRPC:        agentEventHandlers[j].requestVoteRPC,
 					requestVoteResponse:   agentEventHandlers[i].requestVoteResponse,
 					appendEntriesRPC:      agentEventHandlers[j].appendEntriesRPC,
